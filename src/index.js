@@ -155,15 +155,3 @@ export function go(iterator) {
   // if we didn't have any goRoutines, then restart the dispatcher
   runDispatcher()
 }
-
-// test
-  // const ch = newChannel()
-
-  // go(function*() {
-  //   yield ch.put('hello')
-  // })
-
-  // go(function*() {
-  //   const msg = yield ch.take()
-  //   console.log('hi')
-  // })
