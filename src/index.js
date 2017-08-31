@@ -7,9 +7,22 @@ function *chanId() {
   }
 }
 
-const chanIds = chanId()
-const channels = {}
+const chanIdGenerator = chanId()
+/**
+ * map of channel messages
+ */
+const channelBuffers = {}
+/**
+ * Each goRoutine consists of a
+ * - generator
+ * - request, which is the current generator value
+ * - done, which tells if the goRoutine exited
+ */
 const goRoutines = []
+
+
+// The Channel class
+// ===================================
 
 class Channel {
   constructor({id}) {
@@ -17,81 +30,125 @@ class Channel {
   }
 
   take() {
-    return new TakeRequest(this)
+    const {id: chanId} = this
+    return new TakeRequest({chanId})
   }
 
   put(msg) {
-    return new PutRequest(this, msg)
+    const {id: chanId} = this
+    return new PutRequest({chanId, msg})
   }
 }
 
 class TakeRequest {
-  constructor(chan) {
-    this.chan = chan
+  constructor({chanId}) {
+    this.chanId = chanId
   }
 }
 
 class PutRequest {
-  constructor(chan, msg) {
-    this.chan = chan
+  constructor({chanId, msg}) {
+    this.chanId = chanId
     this.msg = msg
   }
 }
 
-function newChannel() {
-  return new Channel({id: chanIds.next().value})
+export function newChannel() {
+  return new Channel({id: chanIdGenerator.next().value})
 }
 
-function dispatcher(channels) {
+// The dispatcher
+// =============================
+
+function nextRequest(generator, returnValue) {
+  const {value, done} = generator.next(returnValue)
+  return {value, done}
+}
+
+function processGoRoutines(goRoutines, channelBuffers) {
   goRoutines.forEach((goRoutine, i) => {
     const {generator} = goRoutine
+    // The current generator value
     let {request} = goRoutine
-    // if no request, then get one
+    let done 
+    // If no request, then get one
     if (!request) {
-      request = generator.next().value
-      Object.assign(goRoutine, {request})
+      const {value, done} = nextRequest(generator)
+      Object.assign(goRoutine, {request: value, done})
     }
     // otherwise we "block" i.e., don't get anymore requests until we
     // satisfy the current request
-    const {chan: {id} = {}, msg} = request || {}
     if (request instanceof TakeRequest) {
       // do we have put data?
-      const channelData = channels[id]
+      const {chanId} = request
+      const channelData = channelBuffers[chanId]
       if (channelData) {
-        // give the data to the generator and get the next request
-        request = generator.next(channelData).value
-        Object.assign(goRoutine, {request})
+        // Return the value to the generator and get the next request.
+        // Yea this is wierd but this is how generators work.
+        const {value, done} = nextRequest(generator, channelData)
+        Object.assign(goRoutine, {request: value, done})
       }
     } else if (request instanceof PutRequest) {
       // we gots data to give
-      channels[id] = msg
-      request = generator.next().value
-      if (request) {
-        Object.assign(goRoutine, {request})
-      }
+      const {chanId, msg} = request
+      // Store the value in the buffer
+      channelBuffers[chanId] = msg
+      // Then get the next request
+      const {value, done} = nextRequest(generator)
+      Object.assign(goRoutine, {request: value, done})
     }
   })
+}
+
+function clearDones(goRoutines) {
+  const countDones = goRoutines.reduce(
+    (total, goRoutine) => { return goRoutine.done ? total + 1 : total },
+    0
+  )
+  // first handle some simple cases first
+  if (!countDones) {
+    return goRoutines
+  } else if (goRoutines.length === countDones) {
+    return []
+  }
+  // then return a new array with all the done goRoutines removed
+  let len = 0
+  return goRoutines.reduce(
+    (newGoRoutines, goRoutine, i) => {
+      if (!goRoutine.done) {
+        newGoRoutines[len++] = goRoutine
+      }
+      return newGoRoutines
+    },
+    new Array[goRoutines.length - countDones]
+  )
+}
+
+function dispatcher(goRoutines, channelBuffers) {
+  processGoRoutines(goRoutines, channelBuffers)
+  goRoutines = clearDones(goRoutines)
   if (goRoutines.length) {
-    setTimeout(() => dispatcher(channels), 0)
+    setTimeout(() => dispatcher(goRoutines, channelBuffers), 0)
   }
 }
 
-setTimeout(() => dispatcher(channels), 0)
+setTimeout(() => dispatcher(goRoutines, channelBuffers), 0)
 
-function go(iterator) {
+export function go(iterator) {
   goRoutines.push({
     generator: iterator(),
+    request: undefined,
   })
 }
 
 // test
-const ch = new Channel()
+  const ch = newChannel()
 
-go(function*() {
-  yield ch.put('hello')
-})
+  go(function*() {
+    yield ch.put('hello')
+  })
 
-go(function*() {
-  const msg = yield ch.take()
-  console.log(msg)
-})
+  go(function*() {
+    const msg = yield ch.take()
+    console.log('hi')
+  })
