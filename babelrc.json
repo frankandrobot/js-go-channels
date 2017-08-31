@@ -9,10 +9,11 @@
         },
         "spec": true,
         "modules": false,
+        "debug": false,
         "include": [
           "transform-es2015-classes"
         ],
-        "useBuiltIns": true,
+        "useBuiltIns": true
       }
     ]
   ],
@@ -20,3 +21,4 @@
     "external-helpers"
   ]
 }
+
