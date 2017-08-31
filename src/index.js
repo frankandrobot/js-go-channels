@@ -18,7 +18,7 @@ const channelBuffers = {}
  * - request, which is the current generator value
  * - done, which tells if the goRoutine exited
  */
-const goRoutines = []
+let goRoutines = []
 
 
 // The Channel class
@@ -157,13 +157,13 @@ export function go(iterator) {
 }
 
 // test
-  const ch = newChannel()
+  // const ch = newChannel()
 
-  go(function*() {
-    yield ch.put('hello')
-  })
+  // go(function*() {
+  //   yield ch.put('hello')
+  // })
 
-  go(function*() {
-    const msg = yield ch.take()
-    console.log('hi')
-  })
+  // go(function*() {
+  //   const msg = yield ch.take()
+  //   console.log('hi')
+  // })

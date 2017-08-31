@@ -1,0 +1,24 @@
+{
+  "presets": [
+    [
+      "env",
+      {
+        "targets": {
+          "node": 4,
+          "browsers": ["ie >= 11"]
+        },
+        "spec": true,
+        "modules": false,
+        "debug": false,
+        "include": [
+          "transform-es2015-classes"
+        ],
+        "useBuiltIns": true
+      }
+    ]
+  ],
+  "plugins": [
+    "external-helpers"
+  ]
+}
+
