@@ -12,8 +12,8 @@ const channels = {}
 const goRoutines = []
 
 class Channel {
-  constructor() {
-    this.id = chanIds.next().value
+  constructor({id}) {
+    this.id = id
   }
 
   take() {
@@ -36,6 +36,10 @@ class PutRequest {
     this.chan = chan
     this.msg = msg
   }
+}
+
+function newChannel() {
+  return new Channel({id: chanIds.next().value})
 }
 
 function dispatcher(channels) {
