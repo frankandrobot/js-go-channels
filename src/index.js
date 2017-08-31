@@ -60,6 +60,10 @@ export function newChannel() {
 // The dispatcher
 // =============================
 
+/**
+ * Get the next value and pass an optional returnValue to the
+ * generator.
+ */
 function nextRequest(generator, returnValue) {
   const {value, done} = generator.next(returnValue)
   return {value, done}
@@ -100,6 +104,11 @@ function processGoRoutines(goRoutines, channelBuffers) {
   })
 }
 
+/**
+ * Returns a new array of goRoutines with the dones removed.
+ * Note that as per https://jsperf.com/array-filter-performance,
+ * Array.filter isn't as performant.
+ */
 function clearDones(goRoutines) {
   const countDones = goRoutines.reduce(
     (total, goRoutine) => { return goRoutine.done ? total + 1 : total },
@@ -124,21 +133,27 @@ function clearDones(goRoutines) {
   )
 }
 
-function dispatcher(goRoutines, channelBuffers) {
-  processGoRoutines(goRoutines, channelBuffers)
-  goRoutines = clearDones(goRoutines)
+function runDispatcher() {
   if (goRoutines.length) {
     setTimeout(() => dispatcher(goRoutines, channelBuffers), 0)
   }
 }
 
-setTimeout(() => dispatcher(goRoutines, channelBuffers), 0)
+function dispatcher() {
+  processGoRoutines(goRoutines, channelBuffers)
+  goRoutines = clearDones(goRoutines)
+  // recursively call itself
+  runDispatcher(goRoutines, channelBuffers)
+}
 
 export function go(iterator) {
+  const startDispatcher = goRoutines.length === 0
   goRoutines.push({
     generator: iterator(),
     request: undefined,
   })
+  // if we didn't have any goRoutines, then restart the dispatcher
+  runDispatcher()
 }
 
 // test
