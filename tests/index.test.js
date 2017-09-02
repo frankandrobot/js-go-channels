@@ -72,25 +72,20 @@ test('go with multiple puts and delayed takes', function(t) {
   })
 })
 
-test('asyncPut works before the go routine', function(t) {
-  t.plan(1)
+test('asyncPut works', function(t) {
+  t.plan(2)
   const ch = newChannel()
+  const ch2 = newChannel()
   ch.asyncPut('before')
   go(function*() {
     const msg = yield ch.take()
     t.equal(msg, 'before')
   })
-})
-
-test('asyncPut works after the go routine', function(t) {
-  t.plan(1)
-  const ch = newChannel()
-  const ch2 = newChannel()
   go(function*() {
-    const msg = yield ch.take()
+    const msg = yield ch2.take()
     t.equal(msg, 'after')
   })
-  ch.asyncPut('after')
+  ch2.asyncPut('after')
 })
 
 test('go handles errors', function(t) {
