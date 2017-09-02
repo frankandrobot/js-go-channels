@@ -1,6 +1,7 @@
 export class Channel {
-  constructor({id}) {
+  constructor({id, channelBuffers}) {
     this.id = id
+    this.channelBuffers = channelBuffers
   }
 
   take() {
@@ -11,6 +12,12 @@ export class Channel {
   put(msg) {
     const {id: chanId} = this
     return new PutRequest({chanId, msg})
+  }
+
+  asyncPut(msg) {
+    const {id: chanId} = this
+    // Add the put request directly to the channel buffer
+    this.channelBuffers[chanId].add(msg)
   }
 }
 

@@ -23,7 +23,7 @@ export function newChannel() {
   const {channelBuffers} = state
   const id = uuid()
   channelBuffers[id] = new LinkedListBuffer()
-  return new Channel({id})
+  return new Channel({id, channelBuffers})
 }
 
 export function go(generator) {
