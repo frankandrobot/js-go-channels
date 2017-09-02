@@ -2,6 +2,12 @@ import test from 'tape'
 import {newChannel, go} from '../src/index'
 
 
+test('go needs a generator', function(t) {
+  t.plan(2)
+  t.throws(() => go('25'), 'Need a generator')
+  t.throws(() => go(function() { return 35 }), 'Need an iterator')
+})
+
 test('basic go usage', function(t) {
   t.plan(1)
   const ch = newChannel()
@@ -14,7 +20,7 @@ test('basic go usage', function(t) {
   })
 })
 
-test('multiple puts', function(t) {
+test('go with multiple puts', function(t) {
   t.plan(2)
   const ch = newChannel()
   go(function*() {
@@ -30,7 +36,7 @@ test('multiple puts', function(t) {
   })
 })
 
-test('multiple puts with delayed takes', function(t) {
+test('go with multiple puts and delayed takes', function(t) {
   t.plan(2)
   const ch = newChannel()
   go(function*() {
@@ -39,16 +45,24 @@ test('multiple puts with delayed takes', function(t) {
   go(function*() {
     yield ch.put('world')
   })
-  // setTimeout causes the dispatcher to run before the takes
-  setTimeout(
-    () => {
-      go(function*() {
-        const msg1 = yield ch.take()
-        t.equal(msg1, 'hello')
-        const msg2 = yield ch.take()
-        t.equal(msg2, 'world')
-      })
-    },
-    0
+  go(function*() {
+    const msg1 = yield ch.take()
+    t.equal(msg1, 'hello')
+  })
+  go(function*() {
+    const msg2 = yield ch.take()
+    t.equal(msg2, 'world')
+  })
+})
+
+test('go handles errors', function(t) {
+  t.plan(1)
+  const ch = newChannel()
+  t.throws(
+    () => go(function*() {
+      yield ch.put('hola')
+      throw new Error('good')
+    }),
+    'good'
   )
 })
