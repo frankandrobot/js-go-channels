@@ -1,13 +1,9 @@
 import "babel-polyfill"
 
-function *chanId() {
-  let chanId = 0
-  for(;;) {
-    yield ++chanId
-  }
-}
+import {BufferItem, LinkedListBuffer, uuid} from './utils'
+import {Channel, TakeRequest, PutRequest} from './channel'
 
-const chanIdGenerator = chanId()
+
 /**
  * map of channel messages
  */
@@ -21,40 +17,10 @@ const channelBuffers = {}
 let goRoutines = []
 
 
-// The Channel class
-// ===================================
-
-class Channel {
-  constructor({id}) {
-    this.id = id
-  }
-
-  take() {
-    const {id: chanId} = this
-    return new TakeRequest({chanId})
-  }
-
-  put(msg) {
-    const {id: chanId} = this
-    return new PutRequest({chanId, msg})
-  }
-}
-
-class TakeRequest {
-  constructor({chanId}) {
-    this.chanId = chanId
-  }
-}
-
-class PutRequest {
-  constructor({chanId, msg}) {
-    this.chanId = chanId
-    this.msg = msg
-  }
-}
-
 export function newChannel() {
-  return new Channel({id: chanIdGenerator.next().value})
+  const id = uuid()
+  channelBuffers[id] = new LinkedListBuffer()
+  return new Channel({id})
 }
 
 // The dispatcher
@@ -85,7 +51,7 @@ function processGoRoutines(goRoutines, channelBuffers) {
     if (request instanceof TakeRequest) {
       // do we have put data?
       const {chanId} = request
-      const channelData = channelBuffers[chanId]
+      const channelData = channelBuffers[chanId].pop()
       if (channelData) {
         // Return the value to the generator and get the next request.
         // Yea this is wierd but this is how generators work.
@@ -96,7 +62,7 @@ function processGoRoutines(goRoutines, channelBuffers) {
       // we gots data to give
       const {chanId, msg} = request
       // Store the value in the buffer
-      channelBuffers[chanId] = msg
+      channelBuffers[chanId].add(msg)
       // Then get the next request
       const {value, done} = nextRequest(generator)
       Object.assign(goRoutine, {request: value, done})
@@ -129,7 +95,7 @@ function clearDones(goRoutines) {
       }
       return newGoRoutines
     },
-    new Array[goRoutines.length - countDones]
+    new Array(goRoutines.length - countDones)
   )
 }
 
