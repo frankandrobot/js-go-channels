@@ -26,11 +26,19 @@ export function newChannel() {
   return new Channel({id})
 }
 
-export function go(iterator) {
+export function go(generator) {
+  // check if generator
+  if (!generator || typeof generator !== 'function' ) {
+    throw new Error('Need a generator');
+  }
+  const iterator = generator()
+  if (!iterator || typeof iterator[Symbol.iterator] !== 'function' ) {
+    throw new Error('Need an iterator');
+  }
   const {goRoutines} = state
   const startDispatcher = goRoutines.length === 0
   goRoutines.push({
-    generator: iterator(),
+    iterator,
     request: undefined,
   })
   // if we didn't have any goRoutines, then restart the dispatcher

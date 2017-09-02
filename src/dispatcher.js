@@ -3,22 +3,22 @@ import {TakeRequest, PutRequest} from './channel'
 
 /**
  * Get the next value and pass an optional returnValue to the
- * generator.
+ * iterator.
  */
-function nextRequest(generator, returnValue) {
-  const {value, done} = generator.next(returnValue)
+function nextRequest(iterator, returnValue) {
+  const {value, done} = iterator.next(returnValue)
   return {value, done}
 }
 
 function processGoRoutines({goRoutines, channelBuffers}) {
   goRoutines.forEach((goRoutine, i) => {
-    const {generator} = goRoutine
-    // The current generator value
+    const {iterator} = goRoutine
+    // The current iterator value
     let {request} = goRoutine
     let done 
     // If no request, then get one
     if (!request) {
-      const {value, done} = nextRequest(generator)
+      const {value, done} = nextRequest(iterator)
       Object.assign(goRoutine, {request: value, done})
     }
     // otherwise we "block" i.e., don't get anymore requests until we
@@ -28,9 +28,9 @@ function processGoRoutines({goRoutines, channelBuffers}) {
       const {chanId} = request
       const channelData = channelBuffers[chanId].pop()
       if (channelData) {
-        // Return the value to the generator and get the next request.
-        // Yea this is wierd but this is how generators work.
-        const {value, done} = nextRequest(generator, channelData)
+        // Return the value to the iterator and get the next request.
+        // Yea this is wierd but this is how iterators work.
+        const {value, done} = nextRequest(iterator, channelData)
         Object.assign(goRoutine, {request: value, done})
       }
     } else if (request instanceof PutRequest) {
@@ -39,7 +39,7 @@ function processGoRoutines({goRoutines, channelBuffers}) {
       // Store the value in the buffer
       channelBuffers[chanId].add(msg)
       // Then get the next request
-      const {value, done} = nextRequest(generator)
+      const {value, done} = nextRequest(iterator)
       Object.assign(goRoutine, {request: value, done})
     }
   })

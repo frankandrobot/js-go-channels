@@ -12,13 +12,14 @@ export class LinkedListBuffer {
   }
 
   add(item) {
+    const bufferItem = new BufferItem(item)
     // first item ever
     if (!this.head) {
-      this.head = item
-      this.tail = item
+      this.head = bufferItem
+      this.tail = bufferItem
       return
     }
-    this.tail.next = item
+    this.tail.next = bufferItem
   }
 
   pop() {
@@ -27,7 +28,7 @@ export class LinkedListBuffer {
     }
     const item = this.head
     this.head = this.head.next
-    return item
+    return item.data
   }
 }
 
