@@ -1,0 +1,38 @@
+{
+  "name": "redux-transaction",
+  "version": "0.0.2",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "tape -r ./babeltest.config 'tests/**/*.js' | tap-notify | tap-diff",
+    "test:simple": "tape -r ./babeltest.config -r babel-polyfill 'tests/**/*.js'",
+    "prerelease": "npm run doc:src && npm run doc:api && npm run dist && git add doc dist && git commit -m \"[dist]\"",
+    "release:major": "npm version major && git push --follow-tags",
+    "release:minor": "npm version minor && git push --follow-tags",
+    "release:patch": "npm version patch && git push --follow-tags",
+    "dist": "rollup --config"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "babel-core": "^6.26.0",
+    "babel-eslint": "^7.2.3",
+    "babel-plugin-external-helpers": "^6.22.0",
+    "babel-polyfill": "^6.26.0",
+    "babel-preset-env": "^1.6.0",
+    "core-js": "^2.5.0",
+    "dependo": "^0.1.6",
+    "docco": "^0.7.0",
+    "documentation": "^4.0.0-rc.1",
+    "eslint": "^3.19.0",
+    "redux": "^3.7.2",
+    "redux-mock-store": "^1.2.3",
+    "rollup": "^0.49.1",
+    "rollup-plugin-babel": "^3.0.2",
+    "rollup-plugin-commonjs": "^8.2.0",
+    "rollup-plugin-node-resolve": "^3.0.0",
+    "tap-diff": "^0.1.1",
+    "tap-notify": "^1.0.0",
+    "tape": "^4.6.3"
+  }
+}
