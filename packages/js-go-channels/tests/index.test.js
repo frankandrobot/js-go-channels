@@ -15,7 +15,7 @@ test('basic go usage', function(t) {
     yield ch.put('hello')
   })
   go(function*() {
-    const msg = yield ch.take()
+    const {value: msg} = yield ch.take()
     t.equal(msg, 'hello')
   })
 })
@@ -28,9 +28,9 @@ test('go with multiple puts', function(t) {
     yield ch.put('world')
   })
   go(function*() {
-    const msg1 = yield ch.take()
+    const {value: msg1} = yield ch.take()
     t.equal(msg1, 'hello')
-    const msg2 = yield ch.take()
+    const {value: msg2} = yield ch.take()
     t.equal(msg2, 'world')
   })
 })
@@ -46,9 +46,9 @@ test('go with two channels', function(t) {
     yield ch2.put('world')
   })
   go(function*() {
-    const msg1 = yield ch1.take()
+    const {value: msg1} = yield ch1.take()
     t.equal(msg1, 'hello')
-    const msg2 = yield ch2.take()
+    const {value: msg2} = yield ch2.take()
     t.equal(msg2, 'world')
   })
 })
@@ -63,11 +63,11 @@ test('go with multiple puts and delayed takes', function(t) {
     yield ch.put('world')
   })
   go(function*() {
-    const msg1 = yield ch.take()
+    const {value: msg1} = yield ch.take()
     t.equal(msg1, 'hello')
   })
   go(function*() {
-    const msg2 = yield ch.take()
+    const {value: msg2} = yield ch.take()
     t.equal(msg2, 'world')
   })
 })
@@ -78,24 +78,49 @@ test('asyncPut works', function(t) {
   const ch2 = newChannel()
   ch.asyncPut('before')
   go(function*() {
-    const msg = yield ch.take()
+    const {value: msg} = yield ch.take()
     t.equal(msg, 'before')
   })
   go(function*() {
-    const msg = yield ch2.take()
+    const {value: msg} = yield ch2.take()
     t.equal(msg, 'after')
   })
   ch2.asyncPut('after')
 })
 
-test('go handles errors', function(t) {
+// test('go handles errors', function(t) {
+//   t.plan(1)
+//   const ch = newChannel()
+//   t.throws(
+//     () => go(function*() {
+//       yield ch.put('hola')
+//       throw new Error('good')
+//     }),
+//     'good'
+//   )
+// })
+
+test('go with timeout', function(t) {
   t.plan(1)
-  const ch = newChannel()
-  t.throws(
-    () => go(function*() {
-      yield ch.put('hola')
-      throw new Error('good')
-    }),
-    'good'
-  )
+  const c1 = newChannel()
+  go(function*() {
+    setTimeout(() => c1.asyncPut("one"), 100)
+  })
+  go(function*() {
+    const {value: msg} = yield c1.take()
+    t.equal(msg, "one")
+  })
 })
+
+// test('select', function(t) {
+//   t.plan(1)
+//   const c1 = newChannel()
+//   const c2 = newChannel()
+//   go(function*() {
+//     yield c1.put("one")
+//     yield c2.put("two")
+//   })
+//   for(c in select(c1,c2)) {
+//     console.log(c)
+//   }
+// })

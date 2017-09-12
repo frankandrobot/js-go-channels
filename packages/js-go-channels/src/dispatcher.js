@@ -28,9 +28,10 @@ function processGoRoutines({goRoutines, channelBuffers}) {
       const {chanId} = request
       const channelData = channelBuffers[chanId].pop()
       if (channelData) {
-        // Return the value to the iterator and get the next request.
-        // Yea this is wierd but this is how iterators work.
-        const {value, done} = nextRequest(iterator, channelData)
+        // Return the value to the iterator i.e., whoever made the
+        // take request and get the next request. Yea this is wierd
+        // but this is how iterators work.
+        const {value, done} = nextRequest(iterator, {value: channelData})
         Object.assign(goRoutine, {request: value, done})
       }
     } else if (request instanceof PutRequest) {
