@@ -7,8 +7,8 @@ export class BufferItem {
 
 export class LinkedListBuffer {
   constructor() {
-    this.head = null
-    this.tail = null
+    this.head = undefined
+    this.tail = undefined
   }
 
   add(item) {
@@ -24,7 +24,7 @@ export class LinkedListBuffer {
 
   pop() {
     if(!this.head) {
-      return null
+      return undefined
     }
     const item = this.head
     this.head = this.head.next
