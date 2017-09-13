@@ -1,5 +1,8 @@
-import test from 'tape'
-import {newChannel, go} from '../src/index'
+import timer from 'timed-tape'
+import tape from 'tape'
+import {newChannel, go, select} from '../src/index'
+
+const test = timer(tape)
 
 
 test('go needs a generator', function(t) {
@@ -112,15 +115,46 @@ test('go with timeout', function(t) {
   })
 })
 
-// test('select', function(t) {
-//   t.plan(1)
-//   const c1 = newChannel()
-//   const c2 = newChannel()
-//   go(function*() {
-//     yield c1.put("one")
-//     yield c2.put("two")
-//   })
-//   for(c in select(c1,c2)) {
-//     console.log(c)
-//   }
-// })
+test('select', function(t) {
+  t.plan(2)
+  const c1 = newChannel()
+  const c2 = newChannel()
+  go(function*() {
+    yield c1.put("one")
+    yield c2.put("two")
+  })
+  go(function*() {
+    for(let i=1; i<=2; i++) {
+      const {value} = yield select(c1, c2)
+      const [val1, val2] = value
+      if (typeof val1 !== 'undefined') {
+        t.equal(val1, "one")
+      } else if (typeof val2 !== 'undefined') {
+        t.equal(val2, "two")
+      }
+    }
+  })
+})
+
+test('select roundrobin', function(t) {
+  t.plan(2)
+  const c1 = newChannel()
+  const c2 = newChannel()
+  go(function*() {
+    yield c1.put("one")
+  })
+  go(function*() {
+    yield c2.put("two")
+  })
+  go(function*() {
+    for(let i=1; i<=2; i++) {
+      const {value} = yield select(c1, c2)
+      const [val1, val2] = value
+      if (typeof val1 !== 'undefined') {
+        t.equal(val1, "one")
+      } else if (typeof val2 !== 'undefined') {
+        t.equal(val2, "two")
+      }
+    }
+  })
+})

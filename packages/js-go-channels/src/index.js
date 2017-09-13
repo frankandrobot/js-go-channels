@@ -2,6 +2,7 @@ import "babel-polyfill"
 
 import {BufferItem, LinkedListBuffer, uuid} from './utils'
 import {Channel, TakeRequest, PutRequest} from './channel'
+import {select} from './select'
 import {runDispatcher} from './dispatcher'
 
 
@@ -44,3 +45,5 @@ export function go(generator) {
   // if we didn't have any goRoutines, then restart the dispatcher
   runDispatcher(state)
 }
+
+export { select }

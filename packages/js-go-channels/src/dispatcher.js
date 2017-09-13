@@ -1,4 +1,5 @@
 import {TakeRequest, PutRequest} from './channel'
+import {SelectRequest} from './select'
 
 
 /**
@@ -11,11 +12,11 @@ function nextRequest(iterator, returnValue) {
 }
 
 function processGoRoutines({goRoutines, channelBuffers}) {
+  const lastSelectedChannel = {}
   goRoutines.forEach((goRoutine, i) => {
     const {iterator} = goRoutine
     // The current iterator value
     let {request} = goRoutine
-    let done 
     // If no request, then get one
     if (!request) {
       const {value, done} = nextRequest(iterator)
@@ -42,6 +43,33 @@ function processGoRoutines({goRoutines, channelBuffers}) {
       // Then get the next request
       const {value, done} = nextRequest(iterator)
       Object.assign(goRoutine, {request: value, done})
+    } else if (request instanceof SelectRequest) {
+      const {channels} = request
+      const lastChannel = lastSelectedChannel[channels] || 0
+      delete lastSelectedChannel[channels]
+      // Just fire the first channel that receives a message: go thru
+      // the selected channels and try to get values.  stop at the
+      // first that has a value.  The problem is that a chatty
+      // goroutine can drown out other channels. So next time we get
+      // the same reselect, we need to pickup where we left off. 
+      const channelData = new Array(channels.length)
+      let hasData = false
+      for(let i=lastChannel; i<channelData.length; i++) {
+        const chanId = channels[i]._id
+        const data = channelBuffers[chanId].pop()
+        if (typeof data !== 'undefined') {
+          channelData[i] = data
+          hasData = true
+          if (i < channelData.length - 1) {
+            lastSelectedChannel[channels] = i + 1
+          }
+          break
+        }
+      }
+      if (hasData) {
+        const {value, done} = nextRequest(iterator, {value: channelData})
+        Object.assign(goRoutine, {request: value, done})
+      }
     }
   })
 }
