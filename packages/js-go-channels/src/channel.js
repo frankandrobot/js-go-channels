@@ -1,23 +1,23 @@
 export class Channel {
   constructor({id, channelBuffers}) {
-    this.id = id
-    this.channelBuffers = channelBuffers
+    this._id = id
+    this._channelBuffers = channelBuffers
   }
 
   take() {
-    const {id: chanId} = this
+    const {_id: chanId} = this
     return new TakeRequest({chanId})
   }
 
   put(msg) {
-    const {id: chanId} = this
+    const {_id: chanId} = this
     return new PutRequest({chanId, msg})
   }
 
   asyncPut(msg) {
-    const {id: chanId} = this
+    const {_id: chanId, _channelBuffers} = this
     // Add the put request directly to the channel buffer
-    this.channelBuffers[chanId].add(msg)
+    _channelBuffers[chanId].add(msg)
   }
 }
 
