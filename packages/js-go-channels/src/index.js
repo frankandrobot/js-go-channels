@@ -18,6 +18,7 @@ const state = {
    * - done, which tells if the goRoutine exited
    */
   goRoutines: [],
+  lastSelectedChannel: {},
 }
 
 export function newChannel() {

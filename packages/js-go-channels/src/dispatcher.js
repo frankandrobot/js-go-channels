@@ -11,8 +11,9 @@ function nextRequest(iterator, returnValue) {
   return {value, done}
 }
 
-function processGoRoutines({goRoutines, channelBuffers}) {
-  const lastSelectedChannel = {}
+function processGoRoutines(
+  {goRoutines, lastSelectedChannel, channelBuffers},
+) {
   goRoutines.forEach((goRoutine, i) => {
     const {iterator} = goRoutine
     // The current iterator value
