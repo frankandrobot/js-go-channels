@@ -80,33 +80,36 @@ function processGoRoutines(
  * Note that as per https://jsperf.com/array-filter-performance,
  * Array.filter isn't as performant.
  */
-function clearDones(goRoutines) {
-  const countDones = goRoutines.reduce(
+function clearDones(state) {
+  const countDones = state.goRoutines.reduce(
     (total, goRoutine) => { return goRoutine.done ? total + 1 : total },
     0
   )
   // first handle some simple cases first
   if (!countDones) {
-    return goRoutines
-  } else if (goRoutines.length === countDones) {
-    return []
+    return
+  } else if (state.goRoutines.length === countDones) {
+    state.goRoutines = []
+    state.lastSelectedChannel = {}
+    return
   }
   // then return a new array with all the done goRoutines removed
   let len = 0
-  return goRoutines.reduce(
+  state.goRoutes = state.goRoutines.reduce(
     (newGoRoutines, goRoutine, i) => {
       if (!goRoutine.done) {
         newGoRoutines[len++] = goRoutine
       }
       return newGoRoutines
     },
-    new Array(goRoutines.length - countDones)
+    new Array(state.goRoutines.length - countDones)
   )
+  state.lastSelectedChannel = {}
 }
 
 function dispatcher(state) {
   processGoRoutines(state)
-  state.goRoutines = clearDones(state.goRoutines)
+  clearDones(state)
   // recursively call itself
   runDispatcher(state)
 }
