@@ -195,3 +195,19 @@ test('closing twice throws an error', function(t) {
     }
   })
 })
+
+test('putting on a closed channel throws an error', function(t) {
+  t.plan(1)
+  const chan = newChannel()
+  let err = {}
+  go(function*() {
+    yield close(chan)
+    try {
+      yield chan.put('something')
+    } catch (e) {
+      err = e
+    } finally {
+      t.equal(err.message, 'Cannot put on a closed channel')
+    }
+  })
+})

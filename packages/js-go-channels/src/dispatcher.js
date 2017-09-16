@@ -53,7 +53,8 @@ function processGoRoutines(
       const {chanId, msg} = request
       // First check if the channel is closed.
       if (!channelBuffers[chanId]) {
-        iterator.throw(new Error('Cannot put on a closed channel'))
+        const {value, done} = iterator.throw(new Error('Cannot put on a closed channel'))
+        Object.assign(goRoutine, {request: value, done})
         return
       }
       // Otherwise, we gots data to give, so store the value in the
@@ -93,7 +94,8 @@ function processGoRoutines(
       const {channel} = request;
       const buffer = channelBuffers[channel._id]
       if (!buffer) {
-        iterator.throw(new Error('Channel is already closed'))
+        const {value, done} = iterator.throw(new Error('Channel is already closed'))
+        Object.assign(goRoutine, {request: value, done})
         return
       }
       // delete the buffer
