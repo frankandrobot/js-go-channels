@@ -4,9 +4,9 @@ export class Channel {
     this._channelBuffers = channelBuffers
   }
 
-  take() {
+  take(_msgId) {
     const {_id: chanId} = this
-    return new TakeRequest({chanId})
+    return new TakeRequest({chanId, _msgId})
   }
 
   put(msg) {
@@ -22,8 +22,9 @@ export class Channel {
 }
 
 export class TakeRequest {
-  constructor({chanId}) {
+  constructor({chanId, _msgId}) {
     this.chanId = chanId
+    this._msgId = _msgId
   }
 }
 

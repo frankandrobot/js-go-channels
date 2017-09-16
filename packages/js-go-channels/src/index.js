@@ -3,6 +3,7 @@ import "babel-polyfill"
 import {BufferItem, LinkedListBuffer, uuid} from './utils'
 import {Channel, TakeRequest, PutRequest} from './channel'
 import {select} from './select'
+import {close} from './close'
 import {runDispatcher} from './dispatcher'
 
 
@@ -47,4 +48,7 @@ export function go(generator) {
   runDispatcher(state)
 }
 
-export { select }
+export {
+  select,
+  close,
+}

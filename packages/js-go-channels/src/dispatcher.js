@@ -1,5 +1,6 @@
 import {TakeRequest, PutRequest} from './channel'
 import {SelectRequest} from './select'
+import {CloseChannelRequest} from './close'
 
 
 /**
@@ -15,33 +16,50 @@ function processGoRoutines(
   {goRoutines, lastSelectedChannel, channelBuffers},
 ) {
   goRoutines.forEach((goRoutine, i) => {
-    const {iterator} = goRoutine
+    const {iterator, done} = goRoutine
+    if (done) {
+      return
+    }
     // The current iterator value
     let {request} = goRoutine
     // If no request, then get one
     if (!request) {
       const {value, done} = nextRequest(iterator)
       Object.assign(goRoutine, {request: value, done})
+      request = value
     }
     // otherwise we "block" i.e., don't get anymore requests until we
     // satisfy the current request
     if (request instanceof TakeRequest) {
-      // do we have put data?
       const {chanId} = request
+      // check if the channel is closed
+      if (!channelBuffers[chanId]) {
+        // if the channel is closed (buffer doesn't exist), then send
+        // back undefined, done = true.
+        const {value, done} = nextRequest(iterator, {value: undefined, done: true})
+        Object.assign(goRoutine, {request: value, done})
+        return
+      }
+      // do we have put data?
       const channelData = channelBuffers[chanId].pop()
       if (channelData) {
         // Return the value to the iterator i.e., whoever made the
         // take request and get the next request. Yea this is wierd
         // but this is how iterators work.
-        const {value, done} = nextRequest(iterator, {value: channelData})
+        const {value, done} = nextRequest(iterator, {value: channelData, done: false})
         Object.assign(goRoutine, {request: value, done})
       }
     } else if (request instanceof PutRequest) {
-      // we gots data to give
       const {chanId, msg} = request
-      // Store the value in the buffer
+      // First check if the channel is closed.
+      if (!channelBuffers[chanId]) {
+        iterator.throw(new Error('Cannot put on a closed channel'))
+        return
+      }
+      // Otherwise, we gots data to give, so store the value in the
+      // buffer.
       channelBuffers[chanId].add(msg)
-      // Then get the next request
+      // Then get the next request.
       const {value, done} = nextRequest(iterator)
       Object.assign(goRoutine, {request: value, done})
     } else if (request instanceof SelectRequest) {
@@ -68,9 +86,19 @@ function processGoRoutines(
         }
       }
       if (hasData) {
-        const {value, done} = nextRequest(iterator, {value: channelData})
+        const {value, done} = nextRequest(iterator, {value: channelData, done: false})
         Object.assign(goRoutine, {request: value, done})
       }
+    } else if (request instanceof CloseChannelRequest) {
+      const {channel} = request;
+      const buffer = channelBuffers[channel._id]
+      // delete the buffer
+      delete channelBuffers[channel._id]
+      // clear out the data
+      while(buffer.pop()) { buffer.pop() }
+      // then get the next request
+      const {value, done} = nextRequest(iterator)
+      Object.assign(goRoutine, {request: value, done})
     }
   })
 }

@@ -1,10 +1,10 @@
 import timer from 'timed-tape'
 import tape from 'tape'
-import {newChannel, go, select} from '../src/index'
+import {newChannel, go, select, close} from '../src/index'
 
 const test = timer(tape)
 
-
+/*
 test('go needs a generator', function(t) {
   t.plan(2)
   t.throws(() => go('25'), 'Need a generator')
@@ -156,5 +156,29 @@ test('select roundrobin', function(t) {
         t.equal(val2, "two")
       }
     }
+  })
+})
+*/
+
+test('close should work', function(t) {
+  t.plan(6)
+  const chan = newChannel()
+  go(function*() {
+    const {value: val1, done: done1} = yield chan.take(1)
+    t.equal(done1, false)
+    t.equal(val1, 'hi')
+    const {value: val2, done: done2} = yield chan.take(2)
+    t.equal(done2, false)
+    t.equal(val2, 'good')
+    const {value: val3, done: done3} = yield chan.take()
+    console.log(3)
+    t.equal(done3, true)
+    t.equal(val3, undefined)
+  })
+
+  go(function*() {
+    yield chan.put('hi')
+    yield chan.put('good')
+    yield close(chan)
   })
 })
