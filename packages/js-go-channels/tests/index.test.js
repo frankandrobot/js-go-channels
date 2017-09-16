@@ -107,11 +107,11 @@ test('go with timeout', function(t) {
   t.plan(1)
   const c1 = newChannel()
   go(function*() {
-    setTimeout(() => c1.asyncPut("one"), 100)
+    setTimeout(() => c1.asyncPut('one'), 100)
   })
   go(function*() {
     const {value: msg} = yield c1.take()
-    t.equal(msg, "one")
+    t.equal(msg, 'one')
   })
 })
 
@@ -120,17 +120,16 @@ test('select', function(t) {
   const c1 = newChannel()
   const c2 = newChannel()
   go(function*() {
-    yield c1.put("one")
-    yield c2.put("two")
+    yield c1.put('one')
+    yield c2.put('two')
   })
   go(function*() {
     for(let i=1; i<=2; i++) {
-      const {value} = yield select(c1, c2)
-      const [val1, val2] = value
+      const [val1, val2] = yield select(c1, c2)
       if (typeof val1 !== 'undefined') {
-        t.equal(val1, "one")
+        t.deepEqual(val1, {value: 'one', done: false})
       } else if (typeof val2 !== 'undefined') {
-        t.equal(val2, "two")
+        t.deepEqual(val2, {value: 'two', done: false})
       }
     }
   })
@@ -141,19 +140,18 @@ test('select roundrobin', function(t) {
   const c1 = newChannel()
   const c2 = newChannel()
   go(function*() {
-    yield c1.put("one")
+    yield c1.put('one')
   })
   go(function*() {
-    yield c2.put("two")
+    yield c2.put('two')
   })
   go(function*() {
     for(let i=1; i<=2; i++) {
-      const {value} = yield select(c1, c2)
-      const [val1, val2] = value
+      const [val1, val2] = yield select(c1, c2)
       if (typeof val1 !== 'undefined') {
-        t.equal(val1, "one")
+        t.deepEqual(val1, {value: 'one', done: false})
       } else if (typeof val2 !== 'undefined') {
-        t.equal(val2, "two")
+        t.deepEqual(val2, {value: 'two', done: false})
       }
     }
   })
@@ -211,3 +209,24 @@ test('putting on a closed channel throws an error', function(t) {
     }
   })
 })
+
+test('close works with select', function(t) {
+  t.plan(2)
+  const c1 = newChannel()
+  const c2 = newChannel()
+  go(function*() {
+    yield close(c1)
+    yield c2.put('two')
+  })
+  go(function*() {
+    for(let i=1; i<=2; i++) {
+      const [val1, val2] = yield select(c1, c2)
+      if (typeof val1 !== 'undefined') {
+        t.deepEqual(val1, {value: undefined, done: true})
+      } else if (typeof val2 !== 'undefined') {
+        t.deepEqual(val2, {value: 'two', done: false})
+      }
+    }
+  })
+})
+

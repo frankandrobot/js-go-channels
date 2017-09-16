@@ -76,9 +76,18 @@ function processGoRoutines(
       let hasData = false
       for(let i=lastChannel; i<channelData.length; i++) {
         const chanId = channels[i]._id
+        if (!channelBuffers[chanId]) {
+          // if channel was closed then send undefined
+          channelData[i] = {value: undefined, done: true}
+          hasData = true
+          if (i < channelData.length - 1) {
+            lastSelectedChannel[channels] = i + 1
+          }
+          break
+        } 
         const data = channelBuffers[chanId].pop()
         if (typeof data !== 'undefined') {
-          channelData[i] = data
+          channelData[i] = {value: data, done: false}
           hasData = true
           if (i < channelData.length - 1) {
             lastSelectedChannel[channels] = i + 1
@@ -87,7 +96,7 @@ function processGoRoutines(
         }
       }
       if (hasData) {
-        const {value, done} = nextRequest(iterator, {value: channelData, done: false})
+        const {value, done} = nextRequest(iterator, channelData)
         Object.assign(goRoutine, {request: value, done})
       }
     } else if (request instanceof CloseChannelRequest) {
