@@ -4,7 +4,7 @@ import {newChannel, go, select, close} from '../src/index'
 
 const test = timer(tape)
 
-/*
+
 test('go needs a generator', function(t) {
   t.plan(2)
   t.throws(() => go('25'), 'Need a generator')
@@ -158,7 +158,6 @@ test('select roundrobin', function(t) {
     }
   })
 })
-*/
 
 test('close should work', function(t) {
   t.plan(6)
@@ -171,14 +170,28 @@ test('close should work', function(t) {
     t.equal(done2, false)
     t.equal(val2, 'good')
     const {value: val3, done: done3} = yield chan.take()
-    console.log(3)
     t.equal(done3, true)
     t.equal(val3, undefined)
   })
-
   go(function*() {
     yield chan.put('hi')
     yield chan.put('good')
     yield close(chan)
+  })
+})
+
+test('closing twice throws an error', function(t) {
+  t.plan(1)
+  const chan = newChannel()
+  let err = {}
+  go(function*() {
+    yield close(chan)
+    try {
+      yield close(chan)
+    } catch(e) {
+      err = e
+    } finally {
+      t.equal(err.message, 'Channel is already closed')
+    }
   })
 })

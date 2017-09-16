@@ -92,6 +92,10 @@ function processGoRoutines(
     } else if (request instanceof CloseChannelRequest) {
       const {channel} = request;
       const buffer = channelBuffers[channel._id]
+      if (!buffer) {
+        iterator.throw(new Error('Channel is already closed'))
+        return
+      }
       // delete the buffer
       delete channelBuffers[channel._id]
       // clear out the data
