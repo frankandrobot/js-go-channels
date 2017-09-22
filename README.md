@@ -111,3 +111,37 @@ routine. As is, this code will run but *silently fail*. Currently, the
 only workaround is to use types or write a custom eslint rule that
 agressively checks for `take`/`put` usage.
 
+### `for-of` loops don't (yet) support `range`
+In go, the code below is valid. That is, `range` converts a channel to
+an asynchronous iterator and then the `for` loop can iterate over
+it. In Javavscript, `for-of` loops do not yet support asynchronous
+iterators. Instead we use a custom `forEach`.
+
+``` go
+ch := make(chan int)
+go func() {
+	ch <- 0
+	time.Sleep(1*time.Second)
+	ch <- 1
+	close(ch)
+}()
+for x := range ch {
+	fmt.Println(x)
+}
+// output: 0, 1
+```
+
+JS version:
+
+``` js
+const ch = newChannel()
+go(function*() {
+  yield ch.put(0)
+  // recall we have to use asyncPut inside of a callback
+  setTimeout(() => ch.asyncPut(1), 1000) 
+})
+range(ch).forEach(x => {
+  console.log(x)
+})
+```
+

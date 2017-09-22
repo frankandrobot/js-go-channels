@@ -19,6 +19,9 @@ const state = {
    * - done, which tells if the goRoutine exited
    */
   goRoutines: [],
+  /**
+   * map to track the last channel that fired in a select
+   */
   lastSelectedChannel: {},
 }
 

@@ -6,6 +6,9 @@ import {CloseChannelRequest} from './close'
 /**
  * Get the next value and pass an optional returnValue to the
  * iterator.
+ * @param {Iterator} iterator
+ * @param {*} returnValue
+ * @return {Object} next value
  */
 function nextRequest(iterator, returnValue) {
   const {value, done} = iterator.next(returnValue)
@@ -118,36 +121,45 @@ function processGoRoutines(
   })
 }
 
-/**
- * Returns a new array of goRoutines with the dones removed.
- * Note that as per https://jsperf.com/array-filter-performance,
- * Array.filter isn't as performant.
- */
 function clearDones(state) {
-  const countDones = state.goRoutines.reduce(
-    (total, goRoutine) => { return goRoutine.done ? total + 1 : total },
+  const oldGoRoutines = state.goRoutines
+  state.goRoutines = clearDoneArray(state.goRoutines)
+  if (oldGoRoutines !== state.goRoutines) {
+    // if we cleared out some goRoutines then invalidate the
+    // lastSelectedChannels
+    state.lastSelectedChannel = {}
+  }
+}
+
+/**
+ * Returns a new array with dones removed. Note that as per
+ * https://jsperf.com/array-filter-performance, Array.filter isn't as
+ * performant.
+ * @param {Array} array
+ * @return {Array} new array
+ */
+function clearDoneArray(array) {
+  const countDones = array.reduce(
+    (total, item) => { return item.done ? total + 1 : total },
     0
   )
   // first handle some simple cases first
   if (!countDones) {
-    return
-  } else if (state.goRoutines.length === countDones) {
-    state.goRoutines = []
-    state.lastSelectedChannel = {}
-    return
+    return array
+  } else if (array.length === countDones) {
+    return []
   }
-  // then return a new array with all the done goRoutines removed
+  // otherwise return a new array with all the dones removed
   let len = 0
-  state.goRoutes = state.goRoutines.reduce(
-    (newGoRoutines, goRoutine, i) => {
-      if (!goRoutine.done) {
-        newGoRoutines[len++] = goRoutine
+  return array.reduce(
+    (newArray, item) => {
+      if (!item.done) {
+        newArray[len++] = item
       }
-      return newGoRoutines
+      return newArray
     },
-    new Array(state.goRoutines.length - countDones)
+    new Array(array.length - countDones)
   )
-  state.lastSelectedChannel = {}
 }
 
 function dispatcher(state) {
@@ -158,6 +170,7 @@ function dispatcher(state) {
 }
 
 /**
+ * @param {Object} state
  * @param {array[]} state.goRoutines
  * @param {map} state.channelBuffers
  */
