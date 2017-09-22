@@ -3,6 +3,28 @@ import {SelectRequest} from './select'
 import {CloseChannelRequest} from './close'
 
 
+export const initialStateFn = () => ({
+  /**
+   * map of channel messages
+   */
+  channelBuffers: {},
+  /**
+   * Each goRoutine consists of a
+   * - generator
+   * - request, which is the current generator value
+   * - done, which tells if the goRoutine exited
+   */
+  goRoutines: [],
+  /**
+   * map to track the last channel that fired in a select
+   */
+  lastSelectedChannel: {},
+  /**
+   * array of range requests
+   */
+  rangeRequests: [],
+})
+
 /**
  * Get the next value and pass an optional returnValue to the
  * iterator.

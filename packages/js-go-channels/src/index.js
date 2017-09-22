@@ -4,26 +4,10 @@ import {BufferItem, LinkedListBuffer, uuid} from './utils'
 import {Channel, TakeRequest, PutRequest} from './channel'
 import {select} from './select'
 import {close} from './close'
-import {runDispatcher} from './dispatcher'
+import {runDispatcher, initialStateFn} from './dispatcher'
 
 
-const state = {
-  /**
-   * map of channel messages
-   */
-  channelBuffers: {},
-  /**
-   * Each goRoutine consists of a
-   * - generator
-   * - request, which is the current generator value
-   * - done, which tells if the goRoutine exited
-   */
-  goRoutines: [],
-  /**
-   * map to track the last channel that fired in a select
-   */
-  lastSelectedChannel: {},
-}
+const state = initialStateFn()
 
 export function newChannel() {
   const {channelBuffers} = state
@@ -49,6 +33,16 @@ export function go(generator) {
   })
   // if we didn't have any goRoutines, then restart the dispatcher
   runDispatcher(state)
+}
+
+export function range(channel) {
+  const {rangeRequests} = state
+  rangeRequests
+  return {
+    forEach(onNext, onError, onCompleted) {
+      next(fn(...args), { onNext, onError, onCompleted });
+    }
+  }
 }
 
 export {
