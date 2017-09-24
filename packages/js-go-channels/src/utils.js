@@ -40,3 +40,16 @@ export function  uuid() {
   // as a libary dependency.
   return id++
 }
+
+
+export function checkGenerator(generator) {
+  // check if generator
+  if (!generator || typeof generator !== 'function' ) {
+    throw new Error('Need a generator');
+  }
+  const iterator = generator()
+  if (!iterator || typeof iterator[Symbol.iterator] !== 'function' ) {
+    throw new Error('Need an iterator');
+  }
+  return iterator
+}

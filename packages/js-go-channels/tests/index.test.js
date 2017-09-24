@@ -5,11 +5,11 @@ import {newChannel, go, select, close} from '../src/scheduler'
 const test = timer(tape)
 
 
-// test('go needs a generator', function(t) {
-//   t.plan(2)
-//   t.throws(() => go('25'), 'Need a generator')
-//   t.throws(() => go(function() { return 35 }), 'Need an iterator')
-// })
+test('go needs a generator', function(t) {
+  t.plan(2)
+  t.throws(() => go('25'), 'Need a generator')
+  t.throws(() => go(function() { return 35 }), 'Need an iterator')
+})
 
 test('basic go usage', function(t) {
   t.plan(1)

@@ -1,6 +1,4 @@
-import {SelectRequest} from './select'
-import {CloseChannelRequest} from './close'
-import {LinkedListBuffer, uuid} from './utils'
+import {LinkedListBuffer, uuid, checkGenerator} from './utils'
 
 
 export const initialStateFn = () => ({
@@ -10,10 +8,6 @@ export const initialStateFn = () => ({
   channels: {},
   dataProducers: {},
   dataConsumers: {},
-  /**
-   * map of last selected channels
-   */
-  lastSelectedChannel: {},
   /**
    * array of range requests
    */
@@ -119,10 +113,7 @@ function scheduler(
     // select returns the first data producer that fires. Sends back
     // an array to the iterator. Just fire the first channel that
     // receives a message: go thru the selected channels and try to
-    // get values. stop at the first that has a value. The problem is
-    // that a chatty goroutine can drown out other channels. So next
-    // time we get the same reselect, we need to pickup where we left
-    // off.
+    // get values. stop at the first that has a value.
   case cSelectRequest: {
     const {chanIds} = payload
     let chanData = null
@@ -222,11 +213,12 @@ function scheduler(
 }
 
 export function go(generator) {
+  const iterator = checkGenerator(generator)
   // so `go` kicks off the scheduler
   scheduler({
     state,
     generator: {
-      iterator: generator(),
+      iterator,
       request: undefined,
       done: false,
     }
@@ -291,60 +283,4 @@ export function select(...channels) {
     type: cSelectRequest,
     payload: {chanIds: channels.map(x => x._id) || []},
   }
-}
-
-function processGoRoutines(
-  {goRoutines, lastSelectedChannel, channelBuffers},
-) {
-  goRoutines.forEach((goRoutine, i) => {
-    const {iterator, done} = goRoutine
-    if (done) {
-      return
-    }
-    // The current iterator value
-    let {request} = goRoutine
-    // If no request, then get one
-    if (!request) {
-      const {value, done} = nextRequest(iterator)
-      Object.assign(goRoutine, {request: value, done})
-      request = value
-    }
-    if (request instanceof SelectRequest) {
-      const {channels} = request
-      const lastChannel = lastSelectedChannel[channels] || 0
-      delete lastSelectedChannel[channels]
-      // Just fire the first channel that receives a message: go thru
-      // the selected channels and try to get values.  stop at the
-      // first that has a value.  The problem is that a chatty
-      // goroutine can drown out other channels. So next time we get
-      // the same reselect, we need to pickup where we left off. 
-      const channelData = new Array(channels.length)
-      let hasData = false
-      for(let i=lastChannel; i<channelData.length; i++) {
-        const chanId = channels[i]._id
-        if (!channelBuffers[chanId]) {
-          // if channel was closed then send undefined
-          channelData[i] = {value: undefined, done: true}
-          hasData = true
-          if (i < channelData.length - 1) {
-            lastSelectedChannel[channels] = i + 1
-          }
-          break
-        } 
-        const data = channelBuffers[chanId].pop()
-        if (typeof data !== 'undefined') {
-          channelData[i] = {value: data, done: false}
-          hasData = true
-          if (i < channelData.length - 1) {
-            lastSelectedChannel[channels] = i + 1
-          }
-          break
-        }
-      }
-      if (hasData) {
-        const {value, done} = nextRequest(iterator, channelData)
-        Object.assign(goRoutine, {request: value, done})
-      }
-    }
-  })
 }
