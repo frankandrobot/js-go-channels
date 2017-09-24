@@ -11,7 +11,7 @@ export const initialStateFn = () => ({
   dataProducers: {},
   dataConsumers: {},
   /**
-   * map to track the last channel that fired in a select
+   * map of last selected channels
    */
   lastSelectedChannel: {},
   /**
@@ -112,7 +112,51 @@ function scheduler(
     } else {
       // add ourselves to the waiting list and hopefully we'll be
       // woken up in the future
-      dataConsumers[chanId].add({iterator})
+      dataConsumers[chanId].add({iterator, type: requestType, payload})
+    }
+    return
+  }
+    // select returns the first data producer that fires. Sends back
+    // an array to the iterator. Just fire the first channel that
+    // receives a message: go thru the selected channels and try to
+    // get values. stop at the first that has a value. The problem is
+    // that a chatty goroutine can drown out other channels. So next
+    // time we get the same reselect, we need to pickup where we left
+    // off.
+  case cSelectRequest: {
+    const {chanIds} = payload
+    let chanData = null
+    let producer = null
+    // do we have any sleeping producers?
+    for(let i=0; i<chanIds.length; i++) {
+      const _chanId = chanIds[i]
+      if (!channels[_chanId]) {
+        // if channel was closed then send undefined
+        chanData = {value: undefined, done: true, chanNum: i}
+        break
+      } 
+      producer = dataProducers[_chanId].pop()
+      if (producer) {
+        const {payload: {msg}} = producer
+        chanData = {value: msg, done: false, chanNum: i}
+        break
+      }
+    }
+    if (chanData) {
+      // wake up the producer
+      producer && nextTick(producer.iterator)
+      const response = new Array(chanIds.length)
+      response[chanData.chanNum] = {value: chanData.value, done: chanData.done}
+      nextTick(iterator, response)
+    } else {
+      // there were no sleeping producers
+      for(let i=0; i<chanIds.length; i++) {
+        dataConsumers[chanIds[i]].add({
+          iterator,
+          type: requestType,
+          payload,
+        })
+      }
     }
     return
   }
@@ -126,10 +170,18 @@ function scheduler(
     // do we have any takers?
     const consumer = dataConsumers[chanId].pop()
     if (consumer) {
-      const {iterator: consumerIterator} = consumer
+      const {iterator: consumerIterator, requestType, payload} = consumer
       nextTick(iterator)
       // wake up the consumer iterator with the msg
-      nextTick(consumerIterator, {value: msg, done: false})
+      if (requestType === cSelectRequest) {
+        const {chanIds} = payload
+        const i = chanIds.indexOf(chanId)
+        const response = new Array(chanIds.length)
+        response[i] = {value: msg, done: false}
+        nextTick(consumerIterator, response)
+      } else {
+        nextTick(consumerIterator, {value: msg, done: false})
+      }
     } else {
       // let's wait for a data consumer
       dataProducers[chanId].add({iterator, payload})
@@ -165,12 +217,6 @@ function scheduler(
     delete dataProducers[chanId]
     nextTick(iterator)
     return
-  }
-  case cSelectRequest: {
-    if (!channels[chanId]) {
-      return nextTick(iterator, {value: undefined, done: true})
-    }
-    // 
   }
   }
 }
@@ -243,7 +289,7 @@ export function close(channel, _msgId) {
 export function select(...channels) {
   return {
     type: cSelectRequest,
-    payload: {channels},
+    payload: {chanIds: channels.map(x => x._id) || []},
   }
 }
 
