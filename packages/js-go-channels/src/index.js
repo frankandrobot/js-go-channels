@@ -20,7 +20,9 @@ const cTakeRequest = 'take'
 const cPutRequest = 'put'
 const cCloseRequest = 'close'
 const cSelectRequest = 'select'
+
 const putCloseError = new Error('Cannot put on a closed channel')
+
 const dummyIterator = {
   next: () => ({value: undefined, done: true}),
   throw: () => ({value: undefined, done: true}),
@@ -49,7 +51,7 @@ function scheduler(
       done: stopScheduler,
     } = iterator.next(iteratorMessage)
     setTimeout(
-      () => scheduler({
+n      () => scheduler({
         state: {dataProducers, dataConsumers, channels},
         generator: {
           iterator,
@@ -106,7 +108,7 @@ function scheduler(
     } else {
       // add ourselves to the waiting list and hopefully we'll be
       // woken up in the future
-      dataConsumers[chanId].add({iterator, type: requestType, payload})
+      dataConsumers[chanId].add({iterator, type: requestType})
     }
     return
   }
@@ -202,7 +204,7 @@ function scheduler(
       const {iterator: producerIterator} = producer
       nextTickThrow(
         producerIterator,
-        new Error('Cannot put on a closed channel'))
+        putCloseError,
       producer = producers.pop()
     }
     delete dataProducers[chanId]
