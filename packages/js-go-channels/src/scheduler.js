@@ -21,9 +21,17 @@ export const initialStateFn = () => ({
 })
 
 const state = initialStateFn()
+
 const cTakeRequest = 'take'
 const cPutRequest = 'put'
 const cCloseRequest = 'close'
+const cSelectRequest = 'select'
+const putCloseError = new Error('Cannot put on a closed channel')
+const dummyIterator = {
+  next: () => ({value: undefined, done: true}),
+  throw: () => ({value: undefined, done: true}),
+  return: () => ({value: undefined, done: true}),
+}
 
 function scheduler(
   {
@@ -96,9 +104,9 @@ function scheduler(
     // do we have any sleeping data producers?
     const producer = dataProducers[chanId].pop()
     if (producer) {
-      const {iterator: producerIterator, payload} = producer
-      // give this iterator the payload
-      nextTick(iterator, {value: payload, done: false})
+      const {iterator: producerIterator, payload: {msg}} = producer
+      // give this iterator the msg
+      nextTick(iterator, {value: msg, done: false})
       // also wake up the data producer
       nextTick(producerIterator)
     } else {
@@ -111,16 +119,17 @@ function scheduler(
   case cPutRequest: {
     // First check if the channel is closed.
     if (!channels[chanId]) {
-      nextTickThrow(iterator, new Error('Cannot put on a closed channel'))
+      nextTickThrow(iterator, putCloseError)
       return
     }
+    const {msg} = payload
     // do we have any takers?
     const consumer = dataConsumers[chanId].pop()
     if (consumer) {
       const {iterator: consumerIterator} = consumer
       nextTick(iterator)
-      // wake up the consumer iterator with the payload
-      nextTick(consumerIterator, {value: payload, done: false})
+      // wake up the consumer iterator with the msg
+      nextTick(consumerIterator, {value: msg, done: false})
     } else {
       // let's wait for a data consumer
       dataProducers[chanId].add({iterator, payload})
@@ -156,6 +165,12 @@ function scheduler(
     delete dataProducers[chanId]
     nextTick(iterator)
     return
+  }
+  case cSelectRequest: {
+    if (!channels[chanId]) {
+      return nextTick(iterator, {value: undefined, done: true})
+    }
+    // 
   }
   }
 }
@@ -193,16 +208,19 @@ export function newChannel() {
       return {
         chanId,
         type: cPutRequest,
-        payload: msg
+        payload: {msg},
       }
     },
     asyncPut(msg) {
-      const dummyIterator = function*() { yield }()
-      // schedule the put right away with a dummyIterator that does
-      // nothing
+      if (!channels[chanId]) {
+        throw new Error('Cannot put on a closed channel')
+      }
       scheduler({
         state,
         generator: {
+          // pass a dummyIterator. We don't care about any errors that
+          // may happen down the road, nor do we need any messages
+          // from the scheduler
           iterator: dummyIterator,
           request: channel.put(msg)
         },
@@ -219,6 +237,13 @@ export function close(channel, _msgId) {
     chanId: channel._id,
     type: cCloseRequest,
     payload: {channel},
+  }
+}
+
+export function select(...channels) {
+  return {
+    type: cSelectRequest,
+    payload: {channels},
   }
 }
 
