@@ -1,6 +1,6 @@
 import timer from 'timed-tape'
 import tape from 'tape'
-import {newChannel, go, select, close} from '../src/scheduler'
+import {newChannel, go, select, close} from '../src/index'
 
 const test = timer(tape)
 
