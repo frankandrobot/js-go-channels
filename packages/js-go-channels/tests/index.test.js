@@ -91,6 +91,28 @@ test('asyncPut works', function(t) {
   ch2.asyncPut('after')
 })
 
+test('putting a pending take works', function(t) {
+  t.plan(1)
+  const c1 = newChannel()
+  go(function*() {
+    const val = yield c1.take()
+    t.deepEqual(val, {value: 'hi', done: false})
+  })
+  go(function*() {
+    yield c1.put('hi')
+  })
+})
+
+test('async putting a pending take works', function(t) {
+  t.plan(1)
+  const c1 = newChannel()
+  go(function*() {
+    const val = yield c1.take()
+    t.deepEqual(val, {value: 'hi', done: false})
+  })
+  c1.asyncPut('hi')
+})
+
 test('go with timeout', function(t) {
   t.plan(1)
   const c1 = newChannel()
@@ -201,6 +223,18 @@ test('close works with select', function(t) {
         t.deepEqual(val2, {value: 'two', done: false})
       }
     }
+  })
+})
+
+test('closing a pending take works', function(t) {
+  t.plan(1)
+  const c1 = newChannel()
+  go(function*() {
+    const val = yield c1.take()
+    t.deepEqual(val, {value: undefined, done: true})
+  })
+  go(function*() {
+    yield close(c1)
   })
 })
 

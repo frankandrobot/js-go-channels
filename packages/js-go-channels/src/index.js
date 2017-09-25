@@ -78,12 +78,6 @@ function _addConsumer(
   })
 }
 
-function _popConsumer(dataConsumers, chanId) {
-  const consumer = dataConsumers[chanId].pop()
-  const {iterator, type, payload} = consumer || {}
-  return consumer ? {iterator, type, payload} : undefined
-}
-
 function scheduler(
   {
     state: {
