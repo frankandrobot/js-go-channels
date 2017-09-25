@@ -27,11 +27,11 @@ const cSelectRequest = 'select'
 
 const putCloseError = new Error('Cannot put on a closed channel')
 
-const dummyIterator = {
+const dummyIterator = () => ({
   next: () => ({value: undefined, done: true}),
   throw: () => ({value: undefined, done: true}),
   return: () => ({value: undefined, done: true}),
-}
+})
 
 /**
  * Does what it says. Need to take into account the case when the
@@ -338,7 +338,7 @@ export function newChannel() {
           // pass a dummyIterator. We don't care about any errors that
           // may happen down the road, nor do we need any messages
           // from the scheduler
-          iterator: dummyIterator,
+          iterator: dummyIterator(),
           request: channel.put(msg)
         },
         stopScheduler: false
@@ -353,7 +353,7 @@ export function close(channel, _msgId) {
     _msgId,
     chanId: channel._id,
     type: cCloseRequest,
-    payload: {channel},
+    payload: {},
   }
 }
 
@@ -361,5 +361,40 @@ export function select(...channels) {
   return {
     type: cSelectRequest,
     payload: {selectedChanIds: channels.map(x => x._id) || []},
+  }
+}
+
+export function range(channel) {
+  return {
+    // This actually registers the callback
+    forEach(callback) {
+        // Internally, it's an iterator
+      const iterator = Object.assign(
+        dummyIterator(),
+        {
+          next: ({value, done}) => {
+            if (done) {
+              // tell the scheduler we're done and don't update
+              // callback
+              return {value: undefined, done: true}
+            }
+            // pass the value to the callback
+            callback(value)
+            // tell the scheduler that the next request is for another
+            // take
+            return {value: channel.take(), done: false}
+          }
+        }
+      )
+      // queue self
+      scheduler({
+        state,
+        generator: {
+          iterator,
+          request: channel.take()
+        },
+        stopScheduler: false
+      })
+    }
   }
 }

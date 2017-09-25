@@ -1,6 +1,6 @@
 import timer from 'timed-tape'
 import tape from 'tape'
-import {newChannel, go, select, close} from '../src/index'
+import {newChannel, go, select, close, range} from '../src/index'
 
 const test = timer(tape)
 
@@ -10,6 +10,9 @@ test('go needs a generator', function(t) {
   t.throws(() => go('25'), 'Need a generator')
   t.throws(() => go(function() { return 35 }), 'Need an iterator')
 })
+
+// basic usage
+// =====================================
 
 test('basic go usage', function(t) {
   t.plan(1)
@@ -91,12 +94,28 @@ test('asyncPut works', function(t) {
   ch2.asyncPut('after')
 })
 
+// putting on a pending consumer
+// ===================================
+
 test('putting a pending take works', function(t) {
   t.plan(1)
   const c1 = newChannel()
   go(function*() {
     const val = yield c1.take()
     t.deepEqual(val, {value: 'hi', done: false})
+  })
+  go(function*() {
+    yield c1.put('hi')
+  })
+})
+
+test('put on a pending select works', function(t) {
+  t.plan(2)
+  const c1 = newChannel()
+  go(function*() {
+    const [val1] = yield select(c1)
+    t.notEqual(typeof val1, 'undefined')
+    t.deepEqual(val1, {value: 'hi', done: false})
   })
   go(function*() {
     yield c1.put('hi')
@@ -113,17 +132,19 @@ test('async putting a pending take works', function(t) {
   c1.asyncPut('hi')
 })
 
-test('go with timeout', function(t) {
-  t.plan(1)
+test('async put on a pending select works', function(t) {
+  t.plan(2)
   const c1 = newChannel()
   go(function*() {
-    setTimeout(() => c1.asyncPut('one'), 100)
+    const [val1] = yield select(c1)
+    t.notEqual(typeof val1, 'undefined')
+    t.deepEqual(val1, {value: 'hi', done: false})
   })
-  go(function*() {
-    const {value: msg} = yield c1.take()
-    t.equal(msg, 'one')
-  })
+  c1.asyncPut('hi')
 })
+
+// close
+// ====================================
 
 test('close should work', function(t) {
   t.plan(6)
@@ -226,6 +247,8 @@ test('close works with select', function(t) {
   })
 })
 
+// closing pending consumer
+
 test('closing a pending take works', function(t) {
   t.plan(1)
   const c1 = newChannel()
@@ -237,6 +260,37 @@ test('closing a pending take works', function(t) {
     yield close(c1)
   })
 })
+
+test('closing a pending select works', function(t) {
+  t.plan(2)
+  const c1 = newChannel()
+  go(function*() {
+    const [val1] = yield select(c1)
+    t.notEqual(typeof val1, 'undefined')
+    t.deepEqual(val1, {value: undefined, done: true})
+  })
+  go(function*() {
+    yield close(c1)
+  })
+})
+
+// misc
+// ====================================
+
+test('go with timeout', function(t) {
+  t.plan(1)
+  const c1 = newChannel()
+  go(function*() {
+    setTimeout(() => c1.asyncPut('one'), 100)
+  })
+  go(function*() {
+    const {value: msg} = yield c1.take()
+    t.equal(msg, 'one')
+  })
+})
+
+// select
+// ============================
 
 test('select', function(t) {
   t.plan(2)
@@ -298,33 +352,6 @@ test('select roundrobins with closed channels', function(t) {
   })
 })
 
-test('closing a pending select works', function(t) {
-  t.plan(2)
-  const c1 = newChannel()
-  go(function*() {
-    const [val1] = yield select(c1)
-    t.notEqual(typeof val1, 'undefined')
-    t.deepEqual(val1, {value: undefined, done: true})
-  })
-  go(function*() {
-    yield close(c1)
-  })
-})
-
-test('put on a pending select works', function(t) {
-  t.plan(2)
-  const c1 = newChannel()
-  go(function*() {
-    const [val1] = yield select(c1)
-    t.notEqual(typeof val1, 'undefined')
-    t.deepEqual(val1, {value: 'hi', done: false})
-  })
-  go(function*() {
-    yield c1.put('hi')
-  })
-
-})
-
 test('selecting the same channels works across goroutines', function(t) {
   t.plan(4)
   const c1 = newChannel()
@@ -356,3 +383,28 @@ test('selecting the same channels works across goroutines', function(t) {
   })
 })
 
+// range
+// ===========================
+
+test('range works', function(t) {
+  t.plan(2)
+  const c1 = newChannel()
+  let i=0
+  go(function*() {
+    yield c1.put('hello')
+  })
+  range(c1).forEach(value => {
+    if (i === 0) {
+      t.equal(value, 'hello')
+    } else if (i === 1) {
+      t.equal(value, 'goodbye')
+    } else {
+      t.equal(1, 2, 'should not be here')
+    }
+    i++
+  })
+  go(function*() {
+    yield c1.put('goodbye')
+    yield close(c1)
+  })
+})
