@@ -379,7 +379,12 @@ export function range(channel) {
               return {value: undefined, done: true}
             }
             // pass the value to the callback
-            callback(value)
+            const unsub = callback(value)
+            if (unsub === false) {
+              // tell the scheduler we're done if callback requests to
+              // unsubscribe
+              return {value: undefined, done: true}
+            }
             // tell the scheduler that the next request is for another
             // take
             return {value: channel.take(), done: false}

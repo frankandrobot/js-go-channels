@@ -408,3 +408,25 @@ test('range works', function(t) {
     yield close(c1)
   })
 })
+
+test('range unsubscribe works', function(t) {
+  t.plan(1)
+  const c1 = newChannel()
+  let i=0
+  go(function*() {
+    yield c1.put('hello')
+  })
+  range(c1).forEach(value => {
+    if (i === 0) {
+      t.equal(value, 'hello')
+      i++
+      return false
+    } 
+    t.equal(1, 2, 'should not be here')
+  })
+  go(function*() {
+    yield c1.put('goodbye')
+    yield close(c1)
+  })
+})
+
