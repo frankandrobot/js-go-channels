@@ -246,3 +246,79 @@ test('select roundrobin', function(t) {
   })
 })
 
+test('select roundrobins with closed channels', function(t) {
+  t.plan(2)
+  const c1 = newChannel()
+  const c2 = newChannel()
+  go(function*() {
+    yield close(c1)
+    yield close(c2)
+    for(let i=1; i<=2; i++) {
+      const [val1, val2] = yield select(c1, c2)
+      if (typeof val1 !== 'undefined') {
+        t.deepEqual(val1, {value: undefined, done: true})
+      } else if (typeof val2 !== 'undefined') {
+        t.deepEqual(val2, {value: undefined, done: true})
+      }
+    }
+  })
+})
+
+test('closing a pending select works', function(t) {
+  t.plan(2)
+  const c1 = newChannel()
+  go(function*() {
+    const [val1] = yield select(c1)
+    t.notEqual(typeof val1, 'undefined')
+    t.deepEqual(val1, {value: undefined, done: true})
+  })
+  go(function*() {
+    yield close(c1)
+  })
+})
+
+test('put on a pending select works', function(t) {
+  t.plan(2)
+  const c1 = newChannel()
+  go(function*() {
+    const [val1] = yield select(c1)
+    t.notEqual(typeof val1, 'undefined')
+    t.deepEqual(val1, {value: 'hi', done: false})
+  })
+  go(function*() {
+    yield c1.put('hi')
+  })
+
+})
+
+test('selecting the same channels works across goroutines', function(t) {
+  t.plan(4)
+  const c1 = newChannel()
+  const c2 = newChannel()
+  go(function*() {
+    yield close(c1)
+    yield close(c2)
+  })
+  go(function*() {
+    yield c1.take()
+    yield c2.take()
+    // wait for the close to happen
+    const [val1, val2] = yield select(c1, c2)
+    t.notEqual(typeof val1, 'undefined')
+    t.deepEqual(val1, {value: undefined, done: true})
+  })
+  go(function*() {
+    yield c1.take()
+    yield c2.take()
+    // wait for the close to happen
+    for(let i=1; i<=2; i++) {
+      const [val1, val2] = yield select(c1, c2)
+      if (i === 1) {
+        t.deepEqual(val1, {value: undefined, done: true})
+      } else if (i === 2) {
+        t.deepEqual(val2, {value: undefined, done: true})
+      }
+    }
+  })
+})
+

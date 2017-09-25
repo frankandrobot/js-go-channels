@@ -9,6 +9,10 @@ export const initialStateFn = () => ({
   dataProducers: {},
   dataConsumers: {},
   /**
+   * map of last selected channels
+   */
+  lastSelected: {},
+  /**
    * array of range requests
    */
   rangeRequests: [],
@@ -29,12 +33,64 @@ const dummyIterator = {
   return: () => ({value: undefined, done: true}),
 }
 
+/**
+ * Does what it says. Need to take into account the case when the
+ * consumer is a pending select, pending take. `select`s have a
+ * different signature.
+ * @param {Iterator} consumer
+ * @param {Object} message
+ * @param {Object} extraArgs
+ * @param {string} extraArgs.chanId
+ */
+function _createConsumerMessage(consumer, message, {chanId}) {
+  const {
+    iterator: consumerIterator,
+    type: requestType,
+    payload
+  } = consumer
+  if (requestType === cSelectRequest) {
+    const {selectedChanIds} = payload
+    const i = selectedChanIds.indexOf(chanId)
+    const response = new Array(selectedChanIds.length)
+    response[i] = message
+    return [consumerIterator, response]
+  } else if (requestType === cTakeRequest) {
+    return [consumerIterator, message]
+  }
+  throw new Error(`Unknown request type ${requestType}`)
+}
+
+function _addConsumer(
+  {
+    dataConsumers,
+    chanId,
+    consumer: {
+      iterator,
+      requestType,
+      payload,
+    },
+  },
+) {
+  dataConsumers[chanId].add({
+    iterator,
+    type: requestType,
+    payload,
+  })
+}
+
+function _popConsumer(dataConsumers, chanId) {
+  const consumer = dataConsumers[chanId].pop()
+  const {iterator, type, payload} = consumer || {}
+  return consumer ? {iterator, type, payload} : undefined
+}
+
 function scheduler(
   {
     state: {
       dataProducers,
       dataConsumers,
       channels,
+      lastSelected,
     },
     generator: {
       iterator,
@@ -51,8 +107,8 @@ function scheduler(
       done: stopScheduler,
     } = iterator.next(iteratorMessage)
     setTimeout(
-n      () => scheduler({
-        state: {dataProducers, dataConsumers, channels},
+      () => scheduler({
+        state: {dataProducers, dataConsumers, channels, lastSelected},
         generator: {
           iterator,
           request,
@@ -70,7 +126,7 @@ n      () => scheduler({
     } = iterator.throw(error)
     setTimeout(
       () => scheduler({
-        state: {dataProducers, dataConsumers, channels},
+        state: {dataProducers, dataConsumers, channels, lastSelected},
         generator: {
           iterator,
           request,
@@ -108,7 +164,15 @@ n      () => scheduler({
     } else {
       // add ourselves to the waiting list and hopefully we'll be
       // woken up in the future
-      dataConsumers[chanId].add({iterator, type: requestType})
+      _addConsumer({
+        dataConsumers,
+        chanId,
+        consumer: {
+          iterator,
+          requestType,
+          payload,
+        },
+      })
     }
     return
   }
@@ -117,12 +181,21 @@ n      () => scheduler({
     // receives a message: go thru the selected channels and try to
     // get values. stop at the first that has a value.
   case cSelectRequest: {
-    const {chanIds} = payload
+    const {selectedChanIds} = payload
+    const lastSelectedId = `${iterator.__goId}:${selectedChanIds}`
     let chanData = null
     let producer = null
-    // do we have any sleeping producers?
-    for(let i=0; i<chanIds.length; i++) {
-      const _chanId = chanIds[i]
+    // mod by the number of selected channels so that we never get an
+    // out-of-bounds exception
+    const unboundedLastSelected =
+          typeof lastSelected[lastSelectedId] !== 'undefined'
+          ? lastSelected[lastSelectedId]
+          : -1
+    const last = (unboundedLastSelected + 1) % selectedChanIds.length
+    delete lastSelected[lastSelectedId]
+    // do we have any sleeping producers? but start from the last selected
+    for(let i=last; i<selectedChanIds.length; i++) {
+      const _chanId = selectedChanIds[i]
       if (!channels[_chanId]) {
         // if channel was closed then send undefined
         chanData = {value: undefined, done: true, chanNum: i}
@@ -136,19 +209,31 @@ n      () => scheduler({
       }
     }
     if (chanData) {
+      // set last selected
+      lastSelected[lastSelectedId] = chanData.chanNum
       // wake up the producer
       producer && nextTick(producer.iterator)
-      const response = new Array(chanIds.length)
-      response[chanData.chanNum] = {value: chanData.value, done: chanData.done}
+      const response = new Array(selectedChanIds.length)
+      response[chanData.chanNum] = {
+        value: chanData.value,
+        done: chanData.done
+      }
       nextTick(iterator, response)
     } else {
-      // there were no sleeping producers
-      for(let i=0; i<chanIds.length; i++) {
-        dataConsumers[chanIds[i]].add({
-          iterator,
-          type: requestType,
-          payload,
-        })
+      // There were no sleeping producers, so add ourselves to the
+      // waiting list of all the non-closed producers.
+      for(let i=0; i<selectedChanIds.length; i++) {
+        if (dataConsumers[selectedChanIds[i]]) {
+          _addConsumer({
+            dataConsumers,
+            chanId: selectedChanIds[i],
+            consumer: {
+              iterator,
+              requestType,
+              payload,
+            },
+          })
+        }
       }
     }
     return
@@ -163,21 +248,15 @@ n      () => scheduler({
     // do we have any takers?
     const consumer = dataConsumers[chanId].pop()
     if (consumer) {
-      const {iterator: consumerIterator, requestType, payload} = consumer
       nextTick(iterator)
-      // wake up the consumer iterator with the msg
-      if (requestType === cSelectRequest) {
-        const {chanIds} = payload
-        const i = chanIds.indexOf(chanId)
-        const response = new Array(chanIds.length)
-        response[i] = {value: msg, done: false}
-        nextTick(consumerIterator, response)
-      } else {
-        nextTick(consumerIterator, {value: msg, done: false})
-      }
+      nextTick(..._createConsumerMessage(
+        consumer,
+        {value: msg, done: false},
+        {chanId}
+      ))
     } else {
       // let's wait for a data consumer
-      dataProducers[chanId].add({iterator, payload})
+      dataProducers[chanId].add({iterator, payload, type: requestType})
     }
     return
   }
@@ -192,8 +271,11 @@ n      () => scheduler({
     const consumers = dataConsumers[chanId]
     let consumer = consumers.pop()
     while(consumer) {
-      const {iterator: consumerIterator} = consumer
-      nextTick(consumerIterator, {value: undefined, done: true})
+      nextTick(..._createConsumerMessage(
+        consumer,
+        {value: undefined, done: true},
+        {chanId}
+      ))
       consumer = consumers.pop()
     }
     delete dataConsumers[chanId]
@@ -204,7 +286,7 @@ n      () => scheduler({
       const {iterator: producerIterator} = producer
       nextTickThrow(
         producerIterator,
-        putCloseError,
+        putCloseError)
       producer = producers.pop()
     }
     delete dataProducers[chanId]
@@ -216,6 +298,7 @@ n      () => scheduler({
 
 export function go(generator) {
   const iterator = checkGenerator(generator)
+  iterator.__goId = uuid()
   // so `go` kicks off the scheduler
   scheduler({
     state,
@@ -283,6 +366,6 @@ export function close(channel, _msgId) {
 export function select(...channels) {
   return {
     type: cSelectRequest,
-    payload: {chanIds: channels.map(x => x._id) || []},
+    payload: {selectedChanIds: channels.map(x => x._id) || []},
   }
 }
