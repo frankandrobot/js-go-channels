@@ -5,13 +5,25 @@
   "description": "Master project for js-go-channels",
   "homepage": "https://github.com/frankandrobot/js-go-channels",
   "repository": "frankandrobot/js-go-channels",
-  "author" "U Avalos <uri@frankandrobot.com>",
+  "author": "U Avalos <uri@frankandrobot.com>",
   "license": "MIT",
   "scripts": {
     "bootstrap": "lerna bootstrap",
-    "publish": "lerna publish"
+    "publish": "lerna publish",
+    "doc:src": "rimraf doc/src && docco -l linear -o ./doc/src/ packages/**/src/*.js",
+    "doc:api": "rimraf doc/api && documentation -g -f html build packages/**/src/** -o doc/api/",
+    "prerelease": "npm run doc:src && npm run doc:api && npm run dist && git add doc dist && git commit -m \"[dist]\"",
+    "release:major": "npm version major && git push --follow-tags",
+    "release:minor": "npm version minor && git push --follow-tags",
+    "release:patch": "npm version patch && git push --follow-tags"
   },
   "devDependencies": {
-    "lerna": "^2.1.2"
+    "docco": "^0.7.0",
+    "documentation": "^5.3.2",
+    "lerna": "^2.1.2",
+    "rimraf": "^2.6.2"
+  },
+  "dependencies": {
+    "user": "0.0.0"
   }
 }

@@ -1,0 +1,62 @@
+{
+  "env": {
+    "legacy-node": {
+      "presets": [
+        [
+          "env",
+          {
+            "targets": {
+              "node": 4
+            },
+            "spec": true,
+            "modules": "commonjs",
+            "include": [
+              "transform-es2015-classes"
+            ],
+            "useBuiltIns": "usage"
+          }
+        ]
+      ],
+      "plugins": [
+        "external-helpers"
+      ]
+    },
+    "legacy-browser": {
+      "presets": [
+        [
+          "env",
+          {
+            "targets": {
+              "browsers": ["ie >= 11"]
+            },
+            "spec": true,
+            "modules": "commonjs",
+            "useBuiltIns": "usage"
+          }
+        ]
+      ],
+      "plugins": [
+        "external-helpers"
+      ]
+    },
+    "legacy-webpack-es": {
+      "presets": [
+        [
+          "env",
+          {
+            "targets": {
+              "browsers": ["ie >= 11"]
+            },
+            "spec": true,
+            "modules": false,
+            "loose": true,
+            "useBuiltIns": "usage"
+          }
+        ]
+      ],
+      "plugins": [
+        "external-helpers"
+      ]
+    }
+  }
+}

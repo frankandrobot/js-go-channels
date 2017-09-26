@@ -1,15 +1,11 @@
 const fs = require('fs')
-// .babelrc doesn't exist because it overrides everything and tests
-// need a different babel config
-const babelrc = JSON.parse(fs.readFileSync('./babelrc.json'))
-const mainSetings = babelrc.presets[0][1]
-Object.assign(
-  mainSetings,
-  {
-    modules: 'commonjs',
-  }
-)
+const path = require('path')
+const babelrcs = JSON.parse(fs.readFileSync(path.join(__dirname, '.babelrc')))
+// use the legacy-node environment
+const babelrc = babelrcs.env['legacy-node']
+// but kill the plugins
 babelrc.plugins = []
 
-require('babel-polyfill')
+// register babel on all test files
 require('babel-register')(babelrc)
+require('babel-polyfill')
