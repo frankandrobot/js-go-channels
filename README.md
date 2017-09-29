@@ -2,7 +2,63 @@
 
 ## Installation
 
+``` bash
+npm install js-go-channels
+```
+
+## Usage
+If you want to try out js-go-channels, check
+out [this fiddle](https://jsfiddle.net/3z3ceyu5/2/). Or better yet,
+check out [this REPL](https://repl.it/LooH). 
+
+### Generators, oh my!
+Your app will need to
+support
+[generators](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Iterators_and_Generators) to
+use this library. Node.js >= 6 supports this out of the box. Modern
+desktop browsers as well. However, if you need to support mobile,
+legacy browsers, or legacy Node.js, then you'll need to
+use [Babel](https://babeljs.io/) to transpile your code. 
+
+Fortunately,
+with [babel-preset-env](https://github.com/babel/babel-preset-env),
+this is now super easy to do. The following shows a sample `.babelrc`
+that compiles for IE 11 support:
+
+``` json
+{
+  "legacy": {
+    "presets": [
+      [
+        "env",
+        {
+          "targets": {
+            "browsers": ["ie >= 11"]
+          },
+          "spec": true,
+          "modules": "commonJS",
+          "useBuiltIns": "usage"
+        }
+      ]
+    ],
+    "plugins": []
+  }
+}
+```
+
+You can then need to
+add [babel-polyfill](https://babeljs.io/docs/usage/polyfill/) as a
+dependency in the package.json. 
+
+That's it! (You then need to configure webpack or equivalent to use Babel.)
+
+*Note that babel-preset-env replaces the old babel-preset-es2015
+plugin.*
+
+## Examples
+
 TODO
+
 
 ## Gotchas
 
@@ -109,12 +165,12 @@ go(function* () {
 To make `put`/`take` work, you need to `yield` inside of a "go"
 routine. As is, this code will run but *silently fail*. Currently, the
 only workaround is to use types or write a custom eslint rule that
-agressively checks for `take`/`put` usage.
+aggressively checks for `take`/`put` usage.
 
 ### `for-of` loops don't (yet) support `range`
 In go, the code below is valid. That is, `range` converts a channel to
 an asynchronous iterator and then the `for` loop can iterate over
-it. In Javavscript, `for-of` loops do not yet support asynchronous
+it. In Javascript, `for-of` loops do not yet support asynchronous
 iterators. Instead we use a custom `forEach`.
 
 ``` go
