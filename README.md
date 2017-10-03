@@ -8,7 +8,7 @@ npm install js-go-channels
 
 ## Usage
 If you want to try out js-go-channels, check
-out [this REPL](https://repl.it/LooH/16).
+out [this REPL](https://repl.it/LooH/25).
 
 ### Generators, oh my!
 Your app will need to
