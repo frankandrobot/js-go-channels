@@ -167,6 +167,32 @@ test('close should work', function(t) {
   })
 })
 
+test('close should work with repl example', function(t) {
+  t.plan(2)
+  const ch = newChannel()
+  go(function*() {
+    const {value, done} = yield ch.take()
+    t.equal(value, undefined)
+    t.equal(done, true)
+  })
+  setTimeout(() => close(ch), 0)
+})
+
+test('pending consumers throw error on close', function(t) {
+  t.plan(1)
+  const ch = newChannel()
+  let err = {}
+  go(function*() {
+    try {
+      yield ch.put('hi ho')
+    } catch (e) {
+      err = e
+    }
+    t.equal(err.message, 'Cannot put on a closed channel')
+  })
+  close(ch)
+})
+
 test('closing twice throws an error', function(t) {
   t.plan(1)
   const chan = newChannel()
@@ -420,4 +446,3 @@ test('range unsubscribe works', function(t) {
     close(c1)
   })
 })
-

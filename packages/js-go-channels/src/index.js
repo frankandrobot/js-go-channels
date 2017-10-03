@@ -327,15 +327,12 @@ export function close(channel, _msgId) {
   }
   // turn off channel
   delete channels[chanId]
-  // tell any pending consumers the channel is closed
+  // awaken any pending consumers, now that the channel is closed
   const consumers = dataConsumers[chanId]
   let consumer = consumers.pop()
   while(consumer) {
-    const [iterator, request] = _createConsumerMessage(
-      consumer,
-      {value: undefined, done: true},
-      {chanId}
-    )
+    const {iterator, type, payload} = consumer
+    const request = {chanId, type, payload}
     scheduler({
       state,
       generator: {
