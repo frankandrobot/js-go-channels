@@ -8,8 +8,7 @@ npm install js-go-channels
 
 ## Usage
 If you want to try out js-go-channels, check
-out [this fiddle](https://jsfiddle.net/3z3ceyu5/2/). Or better yet,
-check out [this REPL](https://repl.it/LooH). 
+out [this REPL](https://repl.it/LooH).
 
 ### Generators, oh my!
 Your app will need to
@@ -18,42 +17,8 @@ support
 use this library. Node.js >= 6 supports this out of the box. Modern
 desktop browsers as well. However, if you need to support mobile,
 legacy browsers, or legacy Node.js, then you'll need to
-use [Babel](https://babeljs.io/) to transpile your code. 
-
-Fortunately,
-with [babel-preset-env](https://github.com/babel/babel-preset-env),
-this is now super easy to do. The following shows a sample `.babelrc`
-that compiles for IE 11 support:
-
-``` json
-{
-  "legacy": {
-    "presets": [
-      [
-        "env",
-        {
-          "targets": {
-            "browsers": ["ie >= 11"]
-          },
-          "spec": true,
-          "modules": "commonJS",
-          "useBuiltIns": "usage"
-        }
-      ]
-    ],
-    "plugins": []
-  }
-}
-```
-
-You can then need to
-add [babel-polyfill](https://babeljs.io/docs/usage/polyfill/) as a
-dependency in the package.json. 
-
-That's it! (You then need to configure webpack or equivalent to use Babel.)
-
-*Note that babel-preset-env replaces the old babel-preset-es2015
-plugin.*
+use [Babel](https://babeljs.io/) to transpile your code. Please see
+the [appendix](#appendix).
 
 ## Examples
 
@@ -201,3 +166,38 @@ range(ch).forEach(x => {
 })
 ```
 
+## <a name="appendix"></a> Appendix
+### Legacy Browser support
+[babel-preset-env](https://github.com/babel/babel-preset-env) makes it
+super easy to support legacy browsers. The following shows a sample
+`.babelrc` that compiles for IE 11:
+
+``` json
+{
+  "legacy": {
+    "presets": [
+      [
+        "env",
+        {
+          "targets": {
+            "browsers": ["ie >= 11"]
+          },
+          "spec": true,
+          "modules": "commonJS",
+          "useBuiltIns": "usage"
+        }
+      ]
+    ],
+    "plugins": []
+  }
+}
+```
+
+You can then need to
+add [babel-polyfill](https://babeljs.io/docs/usage/polyfill/) as a
+dependency in the package.json. 
+
+That's it! (You then need to configure webpack or equivalent to use Babel.)
+
+*Note that babel-preset-env replaces the old babel-preset-es2015
+plugin.*
