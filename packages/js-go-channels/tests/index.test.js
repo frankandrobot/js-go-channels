@@ -163,7 +163,7 @@ test('close should work', function(t) {
   go(function*() {
     yield chan.put('hi')
     yield chan.put('good')
-    yield close(chan)
+    close(chan)
   })
 })
 
@@ -187,8 +187,8 @@ test('putting on a closed channel throws an error', function(t) {
   t.plan(1)
   const chan = newChannel()
   let err = {}
+  close(chan)
   go(function*() {
-    yield close(chan)
     try {
       yield chan.put('something')
     } catch (e) {
@@ -203,8 +203,8 @@ test('async putting on a closed channel throws error', function(t) {
   t.plan(1)
   const chan = newChannel()
   let err = {}
+  close(chan)
   go(function*() {
-    yield close(chan)
     try {
       chan.asyncPut('something')
     } catch (e) {
@@ -216,14 +216,11 @@ test('async putting on a closed channel throws error', function(t) {
 })
 
 test('async putting before channel closed is fine', function(t) {
-  t.plan(2)
+  t.plan(1)
   const chan = newChannel()
   chan.asyncPut('something')
   let err = {}
-  go(function*() {
-    yield close(chan)
-    t.equal(1, 1)
-  })
+  close(chan)
   t.equal(1, 1)
 })
 
@@ -231,8 +228,8 @@ test('close works with select', function(t) {
   t.plan(2)
   const c1 = newChannel()
   const c2 = newChannel()
+  close(c1)
   go(function*() {
-    yield close(c1)
     yield c2.put('two')
   })
   go(function*() {
@@ -256,9 +253,7 @@ test('closing a pending take works', function(t) {
     const val = yield c1.take()
     t.deepEqual(val, {value: undefined, done: true})
   })
-  go(function*() {
-    yield close(c1)
-  })
+  close(c1)
 })
 
 test('closing a pending select works', function(t) {
@@ -269,9 +264,7 @@ test('closing a pending select works', function(t) {
     t.notEqual(typeof val1, 'undefined')
     t.deepEqual(val1, {value: undefined, done: true})
   })
-  go(function*() {
-    yield close(c1)
-  })
+  close(c1)
 })
 
 // misc
@@ -338,9 +331,9 @@ test('select roundrobins with closed channels', function(t) {
   t.plan(2)
   const c1 = newChannel()
   const c2 = newChannel()
+  close(c1)
+  close(c2)
   go(function*() {
-    yield close(c1)
-    yield close(c2)
     for(let i=1; i<=2; i++) {
       const [val1, val2] = yield select(c1, c2)
       if (typeof val1 !== 'undefined') {
@@ -356,10 +349,8 @@ test('selecting the same channels works across goroutines', function(t) {
   t.plan(4)
   const c1 = newChannel()
   const c2 = newChannel()
-  go(function*() {
-    yield close(c1)
-    yield close(c2)
-  })
+  close(c1)
+  close(c2)
   go(function*() {
     yield c1.take()
     yield c2.take()
@@ -405,7 +396,7 @@ test('range works', function(t) {
   })
   go(function*() {
     yield c1.put('goodbye')
-    yield close(c1)
+    close(c1)
   })
 })
 
@@ -426,7 +417,7 @@ test('range unsubscribe works', function(t) {
   })
   go(function*() {
     yield c1.put('goodbye')
-    yield close(c1)
+    close(c1)
   })
 })
 

@@ -37,10 +37,14 @@ const dummyIterator = () => ({
  * Does what it says. Need to take into account the case when the
  * consumer is a pending select, pending take. `select`s have a
  * different signature.
- * @param {Iterator} consumer
- * @param {Object} message
+ * @param {Object} consumer - the consumer and message that was queued
+ * @param {Iterator} consumer.iterator
+ * @param {string} consumer.type - the consumer's message type
+ * @param {Object} consumer.payload - the consumer's message payload
+ * @param {Object} message - the message to give to the consumer
  * @param {Object} extraArgs
  * @param {string} extraArgs.chanId
+ * @returns {[Iterator, Message]}
  */
 function _createConsumerMessage(consumer, message, {chanId}) {
   const {
@@ -254,39 +258,6 @@ function scheduler(
     }
     return
   }
-  case cCloseRequest: {
-    if (!channels[chanId]) {
-      nextTickThrow(iterator, new Error('Channel is already closed'))
-      return
-    }
-    // turn off channel
-    delete channels[chanId]
-    // tell any pending consumers the channel is closed
-    const consumers = dataConsumers[chanId]
-    let consumer = consumers.pop()
-    while(consumer) {
-      nextTick(..._createConsumerMessage(
-        consumer,
-        {value: undefined, done: true},
-        {chanId}
-      ))
-      consumer = consumers.pop()
-    }
-    delete dataConsumers[chanId]
-    // hope we don't have pending producers
-    const producers = dataProducers[chanId]
-    let producer = producers.pop()
-    while(producer) {
-      const {iterator: producerIterator} = producer
-      nextTickThrow(
-        producerIterator,
-        putCloseError)
-      producer = producers.pop()
-    }
-    delete dataProducers[chanId]
-    nextTick(iterator)
-    return
-  }
   }
 }
 
@@ -349,12 +320,53 @@ export function newChannel() {
 }
 
 export function close(channel, _msgId) {
-  return {
-    _msgId,
-    chanId: channel._id,
-    type: cCloseRequest,
-    payload: {},
+  const {channels, dataProducers, dataConsumers} = state
+  const chanId = channel._id
+  if (!channels[chanId]) {
+    throw new Error('Channel is already closed')
   }
+  // turn off channel
+  delete channels[chanId]
+  // tell any pending consumers the channel is closed
+  const consumers = dataConsumers[chanId]
+  let consumer = consumers.pop()
+  while(consumer) {
+    const [iterator, request] = _createConsumerMessage(
+      consumer,
+      {value: undefined, done: true},
+      {chanId}
+    )
+    scheduler({
+      state,
+      generator: {
+        iterator,
+        request,
+      }
+    })
+    consumer = consumers.pop()
+  }
+  delete dataConsumers[chanId]
+  // hope we don't have pending producers
+  const producers = dataProducers[chanId]
+  let producer = producers.pop()
+  while(producer) {
+    const {iterator} = producer
+    const {
+      value: request,
+      done: stopScheduler,
+    } = iterator.throw(putCloseError)
+    scheduler({
+      state,
+      generator: {
+        iterator,
+        request,
+      },
+      stopScheduler,
+    })
+    producer = producers.pop()
+  }
+  delete dataProducers[chanId]
+  return
 }
 
 export function select(...channels) {
