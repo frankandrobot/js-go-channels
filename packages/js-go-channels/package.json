@@ -19,7 +19,7 @@
     "release:patch": "npm version patch && git push --follow-tags"
   },
   "author": "",
-  "license": "ISC",
+  "license": "ALv2",
   "devDependencies": {
     "babel-cli": "^6.26.0",
     "babel-core": "^6.26.0",
