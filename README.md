@@ -21,9 +21,86 @@ use [Babel](https://babeljs.io/) to transpile your code. Please see
 the [appendix](#appendix).
 
 ## Examples
+### Basic Usage
 
-TODO
+```javascript
+import {go, newChannel, close, select, range} from 'js-go-channels';
 
+const ch = newChannel();
+
+go(function*() {
+  yield ch.put('hello');
+  close(ch);
+  // this will throw an error because you can't put on a closed
+  // channel
+  yield ch.put('world');
+});
+
+go(function*() {
+  const msg1 = yield ch.take();
+  console.log(msg1); // {value: hello, done: false}
+  const msg2 = yield ch.take();
+  console.log(msg2); // {value: undefined, done: true}
+  const msg3 = yield ch.take();
+  console.log(msg3); // {value: undefined, done: true}
+});
+```
+
+### Select
+
+```javascript
+import {go, newChannel, close, select, range} from 'js-go-channels';
+
+const ch1 = newChannel();
+const ch2 = newChannel();
+
+go(function*() {
+  yield ch1.put('hello');
+});
+
+go(function*() {
+  yield ch2.put('world');
+});
+
+go(function*() {
+  for(;;) {
+    const [msg1, msg2] = yield select(ch1, ch2);
+    if (msg1) {
+      console.log(msg1); //`{value: hello, done: false}
+    }
+    if (msg2) {
+      console.log(msg2); //`{value: world, done: false}
+    }
+  }
+});
+
+
+```
+
+### Range
+
+``` javascript
+import {go, newChannel, close, select, range} from 'js-go-channels';
+
+const ch = newChannel();
+
+go(function*() {
+  for(let i=0; i<10; i++) {
+    yield ch.put(i);
+  }
+});
+
+range(ch)
+  .forEach(msg => {
+    console.log(msg);
+    if (msg === 5) {
+      // return false to stop receiving messages
+      return false
+    }
+  });
+
+// output: 1,2,3,4,5
+```
 
 ## Gotchas
 
@@ -62,7 +139,7 @@ go(function*() {
 
 Can you spot the bug?
 
-``` js
+```javascript
 const elem = //... some DOM element
 const ch = newChannel()
 elem.addEventListener('mouseup', function() {
@@ -75,7 +152,7 @@ should use an async version of `put` (which can be a good idea since
 blocking UI events doesn't really make sense). Under the hood,
 `asyncPut` uses an infinite buffer.
 
-``` js
+```javascript
 elem.addEventListener('mouseup', function() {
   ch.asyncPut('mouseup') // this works!
 });
@@ -84,7 +161,7 @@ elem.addEventListener('mouseup', function() {
 
 ### The common golang synchronization pattern won't work.
 
-```js
+```javascript
 func main() {
   const messages = newChannel()
   go(function* () { yield messages.put("ping") })
@@ -102,7 +179,7 @@ and to make it block we have to use a callback.
 So the following will work just fine. And by "fine", we mean that
 `main` won't finish until it receives a "ping".
 
-``` js
+```javascript
 func main() {
   const messages = newChannel()
   go(function* () { yield messages.put("ping") })
@@ -118,7 +195,7 @@ func main() {
 
 Can you spot the bug?
 
-```js
+```javascript
 const output = newChannel()
 const input = newChannel()
 go(function* () { 
