@@ -8,8 +8,9 @@
   "author": "U Avalos <uri@frankandrobot.com>",
   "license": "MIT",
   "scripts": {
+    "readme": "cp README.md packages/js-go-channels/README.md",
     "bootstrap": "lerna bootstrap",
-    "publish": "lerna publish",
+    "publish": "npm run readme && lerna publish",
     "doc:src": "rimraf doc/src && docco -l linear -o ./doc/src/ packages/**/src/*.js",
     "doc:api": "rimraf doc/api && documentation -g -f html build packages/**/src/** -o doc/api/",
     "prerelease": "npm run doc:src && npm run doc:api && npm run dist && git add doc dist && git commit -m \"[dist]\"",
