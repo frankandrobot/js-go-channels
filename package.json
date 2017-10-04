@@ -6,7 +6,7 @@
   "homepage": "https://github.com/frankandrobot/js-go-channels",
   "repository": "frankandrobot/js-go-channels",
   "author": "U Avalos <uri@frankandrobot.com>",
-  "license": "ALv2",
+  "license": "Apache-2.0",
   "scripts": {
     "readme": "cp README.md packages/js-go-channels/README.md",
     "bootstrap": "lerna bootstrap",
