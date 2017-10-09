@@ -1,6 +1,6 @@
 {
   "name": "redux-go-workflows",
-  "version": "0.0.29",
+  "version": "0.0.30",
   "description": "",
   "main": "dist/index.js",
   "scripts": {
@@ -36,6 +36,6 @@
     "tape": "^4.6.3"
   },
   "dependencies": {
-    "js-go-channels": "0.0.28"
+    "js-go-channels": "0.0.29"
   }
 }
