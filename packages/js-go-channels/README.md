@@ -102,14 +102,6 @@ range(ch)
 // output: 1,2,3,4,5
 ```
 
-## Redux Integration
-
-Use
-[redux-thunk](https://github.com/gaearon/redux-thunk),
-[redux-saga](https://redux-saga.js.org/),
-or
-[redux-go-workflows](https://github.com/frankandrobot/js-go-channels/packages/redux-go-workflows/README.md).
-
 ## Gotchas
 
 ### Javascript doesn't have multi-return types

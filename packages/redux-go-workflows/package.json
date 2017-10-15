@@ -1,8 +1,8 @@
 {
-  "name": "js-go-channels",
+  "name": "redux-go-workflows",
   "version": "0.0.30",
-  "description": "Golang channels for JS",
-  "homepage": "https://github.com/frankandrobot/js-go-channels",
+  "description": "Go-workflows middleware for redux",
+  "homepage": "https://github.com/frankandrobot/js-go-channels/packages/redux-go-workflows",
   "repository": "frankandrobot/js-go-channels",
   "main": "dist/legacy/index.js",
   "module": "src/index.js",
@@ -44,6 +44,7 @@
     "timed-tape": "^0.1.1"
   },
   "dependencies": {
-    "babel-runtime": "^6.26.0"
+    "babel-runtime": "^6.26.0",
+    "js-go-channels": "0.0.30"
   }
 }
