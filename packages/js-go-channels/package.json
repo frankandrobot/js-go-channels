@@ -1,6 +1,6 @@
 {
   "name": "js-go-channels",
-  "version": "0.0.30",
+  "version": "0.0.31",
   "description": "Golang channels for JS",
   "homepage": "https://github.com/frankandrobot/js-go-channels",
   "repository": "frankandrobot/js-go-channels",
