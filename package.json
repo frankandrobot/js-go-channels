@@ -20,7 +20,6 @@
   },
   "devDependencies": {
     "cz-conventional-changelog": "3.3.0",
-    "docco": "^0.7.0",
     "eslint": "^4.8.0",
     "lerna": "5.5.0",
     "lerna-update-wizard": "^1.1.2",
@@ -36,6 +35,9 @@
   },
   "resolutions": {
     "uglify-js": "2.6.0",
-    "diff": "3.5.0"
+    "diff": "3.5.0",
+    "glob-parent": "5.1.2",
+    "ajv": "6.12.3",
+    "node-notifier": "8.0.1"
   }
 }
