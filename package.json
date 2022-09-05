@@ -35,7 +35,5 @@
       "path": "./node_modules/cz-conventional-changelog"
     }
   },
-  "resolutions": {
-    "parse-url": "6.0.1"
-  }
+  "resolutions": {}
 }
