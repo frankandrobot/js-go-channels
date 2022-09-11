@@ -50,38 +50,47 @@ interface Consumers<Data> {
 interface Channel<Data> {
   _id: string;
 
-  take(msgId: string): { chanId: string; type: "take"; payload: undefined };
+  take(msgId?: string): { chanId: string; type: "take"; payload: undefined };
 
   put(msg: Data): { chanId: string; type: "put"; payload: { msg: Data } };
 
   asyncPut(msg: Data): void;
 }
 
-export const initialStateFn = () => ({
+interface State {
   /**
    * map of active channels
    */
-  channels: {} as { [id: string]: true },
-  // TODO convert to weak maps and not worry about cleanup
-  dataProducers: {} as Consumers<any>,
-  dataConsumers: {} as Consumers<any>,
+  channels: { [id: string]: true };
+
+  dataProducers: Consumers<any>;
+  dataConsumers: Consumers<any>;
+
   /**
    * map of last selected channels
    */
-  lastSelected: {} as { [id: string]: Channel<any> },
+  lastSelected: { [id: string]: Channel<any> };
+
   /**
    * array of range requests
    */
+  rangeRequests?: [];
+}
+
+export const initialStateFn = (): State => ({
+  channels: {},
+  // TODO convert to weak maps and not worry about cleanup
+  dataProducers: {},
+  dataConsumers: {},
+  lastSelected: {},
   rangeRequests: [],
 });
 
 const state = initialStateFn();
 
-type State = typeof state;
-
 const putCloseError = new Error("Cannot put on a closed channel");
 
-const dummyIterator = () => ({
+const dummyIterator = (): GoGenerator<undefined> => ({
   next: () => ({ value: undefined, done: true }),
   throw: () => ({ value: undefined, done: true }),
   return: () => ({ value: undefined, done: true }),
@@ -143,8 +152,9 @@ function scheduler<Data>({
   generator: {
     iterator: GoGenerator<Request<Data>>;
     request: Request<Data> | undefined;
+    done?: false;
   };
-  stopScheduler: boolean | undefined;
+  stopScheduler?: boolean | undefined;
 }) {
   // Give the iterator the iteratorMessage and pass the result to the
   // scheduler
@@ -322,7 +332,7 @@ function scheduler<Data>({
   }
 }
 
-export function go(generator) {
+export function go(generator: GoGenerator<any>) {
   const iterator = checkGenerator(generator);
   iterator.__goId = uuid();
   // so `go` kicks off the scheduler
@@ -443,8 +453,9 @@ export function select<Data1, Data2, Data3>(
   ...channel: [Channel<Data1>, Channel<Data2>, Channel<Data3>]
 ): Selection;
 
-// TODO add more types
-
+/**
+ * Allows you to yield for the values of the selected channels.
+ */
 export function select(...channels: Channel<any>[]): Selection {
   return {
     type: "select",
@@ -452,6 +463,9 @@ export function select(...channels: Channel<any>[]): Selection {
   };
 }
 
+/**
+ * forEach will be called each time someone `put`s to the Channel.
+ */
 export function range<Data>(channel: Channel<Data>) {
   return {
     // This actually registers the callback
