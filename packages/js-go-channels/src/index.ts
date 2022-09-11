@@ -31,6 +31,7 @@ const requestTypes = ["take", "put", "select"] as const;
 
 type RequestType = typeof requestTypes[number];
 
+// TODO probably not needed
 interface Payload<Data> {
   selectedChanIds: string[];
   msg: Data;
@@ -42,20 +43,28 @@ interface Consumer<Data> {
   payload: Payload<Data>;
 }
 
-interface Channel<Data> {
-  _id: string;
-  take(): Data;
+interface Consumers<Data> {
+  [key: string]: LinkedListBuffer<Consumer<Data>>;
 }
 
-interface DataProducer {}
+interface Channel<Data> {
+  _id: string;
+
+  take(msgId: string): { chanId: string; type: "take"; payload: undefined };
+
+  put(msg: Data): { chanId: string; type: "put"; payload: { msg: Data } };
+
+  asyncPut(msg: Data): void;
+}
 
 export const initialStateFn = () => ({
   /**
    * map of active channels
    */
-  channels: {} as { [id: string]: Channel<any> },
-  dataProducers: {} as { [id: string]: DataProducer[] },
-  dataConsumers: {} as { [id: string]: Consumer<any>[] },
+  channels: {} as { [id: string]: true },
+  // TODO convert to weak maps and not worry about cleanup
+  dataProducers: {} as Consumers<any>,
+  dataConsumers: {} as Consumers<any>,
   /**
    * map of last selected channels
    */
@@ -68,6 +77,8 @@ export const initialStateFn = () => ({
 
 const state = initialStateFn();
 
+type State = typeof state;
+
 const putCloseError = new Error("Cannot put on a closed channel");
 
 const dummyIterator = () => ({
@@ -75,10 +86,6 @@ const dummyIterator = () => ({
   throw: () => ({ value: undefined, done: true }),
   return: () => ({ value: undefined, done: true }),
 });
-
-interface Consumers<Data> {
-  [key: string]: LinkedListBuffer<Consumer<Data>>;
-}
 
 interface Request<Data> {
   chanId: string;
@@ -117,7 +124,7 @@ function _addConsumer<Data>({
   dataConsumers: Consumers<Data>;
   chanId: string;
   consumer: Pick<Consumer<Data>, "iterator" | "payload"> & {
-    requestType: string;
+    requestType: RequestType;
   };
 }) {
   dataConsumers[chanId].add({
@@ -132,13 +139,7 @@ function scheduler<Data>({
   generator: { iterator, request },
   stopScheduler,
 }: {
-  state: {
-    dataProducers: Consumers<Data>;
-    dataConsumers: Consumers<Data>;
-    // TODO
-    channels: Record<string, unknown>;
-    lastSelected: number;
-  };
+  state: State;
   generator: {
     iterator: GoGenerator<Request<Data>>;
     request: Request<Data> | undefined;
@@ -193,7 +194,9 @@ function scheduler<Data>({
     return;
   }
   if (!request) return;
+
   const { type: requestType, chanId, payload } = request;
+
   switch (requestType) {
     case "take": {
       // check if the channel is closed
@@ -333,26 +336,27 @@ export function go(generator) {
   });
 }
 
-export function newChannel() {
+export function newChannel<Data>() {
   const { channels, dataProducers, dataConsumers } = state;
   const chanId = uuid();
   channels[chanId] = true;
   dataProducers[chanId] = new LinkedListBuffer();
   dataConsumers[chanId] = new LinkedListBuffer();
-  const channel = {
+
+  const channel: Channel<Data> = {
     get _id() {
-      return chanId;
+      return chanId.toString();
     },
-    take(_msgId) {
+    take(msgId: string) {
       return {
-        chanId,
+        chanId: chanId.toString(),
         type: "take",
-        payload: {},
+        payload: undefined,
       };
     },
     put(msg) {
       return {
-        chanId,
+        chanId: chanId.toString(),
         type: "put",
         payload: { msg },
       };
@@ -374,6 +378,7 @@ export function newChannel() {
       });
     },
   };
+
   return channel;
 }
 
