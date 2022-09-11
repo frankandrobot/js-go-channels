@@ -16,17 +16,50 @@
 
 import { LinkedListBuffer, uuid, checkGenerator } from "./utils";
 
+/**
+ * What goes into the "next" value of the iterator
+ */
+type GoNextGenerator<Data> = IteratorResult<undefined, Data>;
+
+type GoGenerator<Data> = Generator<
+  undefined, // yield result
+  Data, // return type
+  GoNextGenerator<Data> | undefined // next arguments
+> & { __goId: string };
+
+const requestTypes = ["take", "put", "select"] as const;
+
+type RequestType = typeof requestTypes[number];
+
+interface Payload<Data> {
+  selectedChanIds: string[];
+  msg: Data;
+}
+
+interface Consumer<Data> {
+  iterator: GoGenerator<Data>;
+  type: RequestType;
+  payload: Payload<Data>;
+}
+
+interface Channel<Data> {
+  _id: string;
+  take(): Data;
+}
+
+interface DataProducer {}
+
 export const initialStateFn = () => ({
   /**
    * map of active channels
    */
-  channels: {},
-  dataProducers: {},
-  dataConsumers: {},
+  channels: {} as { [id: string]: Channel<any> },
+  dataProducers: {} as { [id: string]: DataProducer[] },
+  dataConsumers: {} as { [id: string]: Consumer<any>[] },
   /**
    * map of last selected channels
    */
-  lastSelected: {},
+  lastSelected: {} as { [id: string]: Channel<any> },
   /**
    * array of range requests
    */
@@ -34,11 +67,6 @@ export const initialStateFn = () => ({
 });
 
 const state = initialStateFn();
-
-const cTakeRequest = "take";
-const cPutRequest = "put";
-const cCloseRequest = "close";
-const cSelectRequest = "select";
 
 const putCloseError = new Error("Cannot put on a closed channel");
 
@@ -48,35 +76,14 @@ const dummyIterator = () => ({
   return: () => ({ value: undefined, done: true }),
 });
 
-/**
- * What goes into the "next" value of the iterator
- */
-type GoNextGenerator<Data> = IteratorResult<undefined, Data>
-
-/**
- * If you look at the source code, the 2nd param is the result type, i.e., the
- * data returned, and the 3rd param is the "next" arguments.
- */
-type GoGenerator<Data> = Generator<undefined, Data, GoNextGenerator<Data> | undefined> & {__goId: string};
-
-interface Payload<Data> { 
-  selectedChanIds: string[]; msg: Data 
-};
-
-interface Consumer<Data> {
-  iterator: GoGenerator<Data>;
-  type: string;
-  payload: Payload<Data>;
-}
-
 interface Consumers<Data> {
   [key: string]: LinkedListBuffer<Consumer<Data>>;
 }
 
 interface Request<Data> {
-    chanId: string;
-    type: string;
-    payload: Payload<Data>;
+  chanId: string;
+  type: RequestType;
+  payload: Payload<Data>;
 }
 
 /**
@@ -90,13 +97,13 @@ function _createConsumerMessage<Data, Message>(
   { chanId }: { chanId: string }
 ) {
   const { iterator: consumerIterator, type: requestType, payload } = consumer;
-  if (requestType === cSelectRequest) {
+  if (requestType === "select") {
     const { selectedChanIds } = payload;
     const i = selectedChanIds.indexOf(chanId);
     const response = new Array(selectedChanIds.length);
     response[i] = message;
     return [consumerIterator, response];
-  } else if (requestType === cTakeRequest) {
+  } else if (requestType === "take") {
     return [consumerIterator, message];
   }
   throw new Error(`Unknown request type ${requestType}`);
@@ -128,7 +135,7 @@ function scheduler<Data>({
   state: {
     dataProducers: Consumers<Data>;
     dataConsumers: Consumers<Data>;
-    // TODO 
+    // TODO
     channels: Record<string, unknown>;
     lastSelected: number;
   };
@@ -141,12 +148,11 @@ function scheduler<Data>({
   // Give the iterator the iteratorMessage and pass the result to the
   // scheduler
   const nextTick = (
-    iterator : GoGenerator<Request<Data>>,
+    iterator: GoGenerator<Request<Data>>,
     iteratorMessage?: GoNextGenerator<Request<Data> | undefined>
   ) => {
-    const { value: request, done: stopScheduler } = iterator.next(
-      iteratorMessage
-    );
+    const { value: request, done: stopScheduler } =
+      iterator.next(iteratorMessage);
     setTimeout(
       () =>
         scheduler({
@@ -161,8 +167,9 @@ function scheduler<Data>({
     );
   };
   // Give the iterator the error and pass the result to the scheduler
-  const nextTickThrow = (iterator: GoGenerator<Request<Data>>, error : any) => {
-    const { value: request, done: stopScheduler } = iterator.throw?.(error) ?? {};
+  const nextTickThrow = (iterator: GoGenerator<Request<Data>>, error: any) => {
+    const { value: request, done: stopScheduler } =
+      iterator.throw?.(error) ?? {};
 
     setTimeout(
       () =>
@@ -188,7 +195,7 @@ function scheduler<Data>({
   if (!request) return;
   const { type: requestType, chanId, payload } = request;
   switch (requestType) {
-    case cTakeRequest: {
+    case "take": {
       // check if the channel is closed
       if (!channels[chanId]) {
         // if the channel is closed (buffer doesn't exist), then pass
@@ -225,7 +232,7 @@ function scheduler<Data>({
     // an array to the iterator. Just fire the first channel that
     // receives a message: go thru the selected channels and try to
     // get values. stop at the first that has a value.
-    case cSelectRequest: {
+    case "select": {
       const { selectedChanIds } = payload;
       const lastSelectedId = `${iterator.__goId}:${selectedChanIds}`;
       let chanData = null;
@@ -285,7 +292,7 @@ function scheduler<Data>({
       }
       return;
     }
-    case cPutRequest: {
+    case "put": {
       // First check if the channel is closed.
       if (!channels[chanId]) {
         nextTickThrow(iterator, putCloseError);
@@ -339,14 +346,14 @@ export function newChannel() {
     take(_msgId) {
       return {
         chanId,
-        type: cTakeRequest,
+        type: "take",
         payload: {},
       };
     },
     put(msg) {
       return {
         chanId,
-        type: cPutRequest,
+        type: "put",
         payload: { msg },
       };
     },
@@ -370,12 +377,11 @@ export function newChannel() {
   return channel;
 }
 
-export function close(channel, _msgId) {
+export function close<Data>(channel: Channel<Data>, _msgId: string) {
   const { channels, dataProducers, dataConsumers } = state;
   const chanId = channel._id;
-  if (!channels[chanId]) {
-    throw new Error("Channel is already closed");
-  }
+  if (!channels[chanId]) new Error("Channel is already closed");
+
   // turn off channel
   delete channels[chanId];
   // awaken any pending consumers, now that the channel is closed
@@ -399,9 +405,8 @@ export function close(channel, _msgId) {
   let producer = producers.pop();
   while (producer) {
     const { iterator } = producer;
-    const { value: request, done: stopScheduler } = iterator.throw(
-      putCloseError
-    );
+    const { value: request, done: stopScheduler } =
+      iterator.throw(putCloseError);
     scheduler({
       state,
       generator: {
@@ -416,28 +421,47 @@ export function close(channel, _msgId) {
   return;
 }
 
-export function select(...channels) {
+interface Selection {
+  type: "select";
+  payload: {
+    selectedChanIds: string[];
+  };
+}
+
+export function select<Data1>(...channel: [Channel<Data1>]): Selection;
+
+export function select<Data1, Data2>(
+  ...channel: [Channel<Data1>, Channel<Data2>]
+): Selection;
+
+export function select<Data1, Data2, Data3>(
+  ...channel: [Channel<Data1>, Channel<Data2>, Channel<Data3>]
+): Selection;
+
+// TODO add more types
+
+export function select(...channels: Channel<any>[]): Selection {
   return {
-    type: cSelectRequest,
+    type: "select",
     payload: { selectedChanIds: channels.map((x) => x._id) || [] },
   };
 }
 
-export function range(channel) {
+export function range<Data>(channel: Channel<Data>) {
   return {
     // This actually registers the callback
-    forEach(callback) {
+    forEach(callback: (value: Data) => boolean) {
       // Internally, it's an iterator
       const iterator = Object.assign(dummyIterator(), {
-        next: ({ value, done }) => {
+        next: ({ value, done }: { value: Data; done: boolean }) => {
           if (done) {
             // tell the scheduler we're done and don't update
             // callback
             return { value: undefined, done: true };
           }
           // pass the value to the callback
-          const unsub = callback(value);
-          if (unsub === false) {
+          const unsubscribe = callback(value);
+          if (unsubscribe === false) {
             // tell the scheduler we're done if callback requests to
             // unsubscribe
             return { value: undefined, done: true };
