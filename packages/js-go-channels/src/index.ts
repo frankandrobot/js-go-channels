@@ -29,7 +29,7 @@ interface ChannelPutRequest<Data> {
 }
 
 interface ChannelSelectRequest {
-  chanId: string;
+  chanId?: undefined;
   type: "select";
   payload: {
     selectedChanIds: string[];
@@ -40,8 +40,6 @@ type ChannelYieldRequest<Data> =
   | ChannelTakeRequest
   | ChannelPutRequest<Data>
   | ChannelSelectRequest;
-
-type RequestType = ChannelYieldRequest<any>["type"];
 
 interface Channel<Data> {
   readonly _id: string;
@@ -64,14 +62,32 @@ type GoGenerator<Data> = Generator<
   any // TODO next arguments
 > & { __goId?: string };
 
-const requestTypes = ["take", "put", "select"] as const;
+type GoIterator<Data> = Iterator<
+  ChannelYieldRequest<Data>, // yield result
+  void, // return type
+  any // TODO next arguments
+> & { __goId?: string };
 
-type Consumer<Data> = ChannelYieldRequest<Data> & {
+/**
+ * "consumers" are generators that "take"/"select" from the channel
+ */
+type Consumer<Data> = (ChannelTakeRequest | ChannelSelectRequest) & {
   iterator: GoGenerator<Data>;
 };
 
 interface Consumers<Data> {
   [key: string]: LinkedListBuffer<Consumer<Data>>;
+}
+
+/**
+ * "producers" are generators that "put" into the channel.
+ */
+type Producer<Data> = ChannelPutRequest<Data> & {
+  iterator: GoGenerator<Data>;
+};
+
+interface Producers<Data> {
+  [key: string]: LinkedListBuffer<Producer<Data>>;
 }
 
 interface State {
@@ -80,13 +96,13 @@ interface State {
    */
   channels: { [id: string]: true };
 
-  dataProducers: Consumers<any>;
+  dataProducers: Producers<any>;
   dataConsumers: Consumers<any>;
 
   /**
    * map of last selected channels
    */
-  lastSelected: { [id: string]: Channel<any> };
+  lastSelected: { [id: string]: number };
 
   /**
    * array of range requests
@@ -106,7 +122,7 @@ const state = initialStateFn();
 
 const putCloseError = new Error("Cannot put on a closed channel");
 
-const dummyIterator = (): GoGenerator<undefined> => ({
+const dummyIterator = (): GoIterator<undefined> => ({
   next: () => ({ value: undefined, done: true }),
   throw: () => ({ value: undefined, done: true }),
   return: () => ({ value: undefined, done: true }),
@@ -119,8 +135,8 @@ const dummyIterator = (): GoGenerator<undefined> => ({
  */
 function _createConsumerMessage<Data, Message>(
   consumer: Consumer<Data>,
-  message: Message,
-  { chanId }: { chanId: string }
+  message: { value: Message; done: false },
+  chanId: string
 ) {
   const { iterator: consumerIterator, type: requestType, payload } = consumer;
 
@@ -128,23 +144,25 @@ function _createConsumerMessage<Data, Message>(
     case "select": {
       const { selectedChanIds } = payload;
       const i = selectedChanIds.indexOf(chanId);
-      const response: Message[] = new Array(selectedChanIds.length);
+      const response: Array<{ value: Message; done: false }> = new Array(
+        selectedChanIds.length
+      );
       response[i] = message;
       return [consumerIterator, response] as const;
     }
     case "take": {
       return [consumerIterator, message] as const;
     }
-    default:
-      throw new Error(`Unknown request type ${requestType}`);
   }
 }
 
 function _addConsumer<Data>({
   dataConsumers,
-  consumer: { iterator, chanId, type, payload },
+  chanId,
+  consumer: { iterator, type, payload },
 }: {
   dataConsumers: Consumers<Data>;
+  chanId: string;
   consumer: Consumer<Data>;
 }) {
   dataConsumers[chanId].add({
@@ -172,7 +190,8 @@ function scheduler<Data>({
   // scheduler
   const nextTick = (
     iterator: GoGenerator<Data>,
-    iteratorMessage?: GoNextGenerator<ChannelYieldRequest<Data> | undefined>
+    // TODO any
+    iteratorMessage?: any
   ) => {
     const { value: yieldRequest, done: stopScheduler } =
       iterator.next(iteratorMessage);
@@ -238,6 +257,7 @@ function scheduler<Data>({
           iterator: producerIterator,
           payload: { msg },
         } = producer;
+
         // give this iterator the msg
         nextTick(iterator, { value: msg, done: false });
         // also wake up the data producer
@@ -247,6 +267,7 @@ function scheduler<Data>({
         // woken up in the future
         _addConsumer({
           dataConsumers,
+          chanId,
           consumer: {
             chanId,
             iterator,
@@ -265,40 +286,55 @@ function scheduler<Data>({
     case "select": {
       const { selectedChanIds } = payload;
       const lastSelectedId = `${iterator.__goId}:${selectedChanIds}`;
-      let chanData = null;
+
+      let chanData: {
+        value: undefined;
+        done: boolean;
+        chanIndex: number;
+      } | null = null;
+
       let producer = null;
+
       // mod by the number of selected channels so that we never get an
       // out-of-bounds exception
       const unboundedLastSelected =
         typeof lastSelected[lastSelectedId] !== "undefined"
           ? lastSelected[lastSelectedId]
           : -1;
+
       const last = (unboundedLastSelected + 1) % selectedChanIds.length;
       delete lastSelected[lastSelectedId];
+
       // do we have any sleeping producers? but start from the last selected
       for (let i = last; i < selectedChanIds.length; i++) {
         const _chanId = selectedChanIds[i];
+
         if (!channels[_chanId]) {
           // if channel was closed then send undefined
-          chanData = { value: undefined, done: true, chanNum: i };
+          chanData = { value: undefined, done: true, chanIndex: i };
           break;
         }
+
         producer = dataProducers[_chanId].pop();
+
         if (producer) {
           const {
             payload: { msg },
           } = producer;
-          chanData = { value: msg, done: false, chanNum: i };
+          chanData = { value: msg, done: false, chanIndex: i };
           break;
         }
       }
+
       if (chanData) {
         // set last selected
-        lastSelected[lastSelectedId] = chanData.chanNum;
+        lastSelected[lastSelectedId] = chanData.chanIndex;
         // wake up the producer
         producer && nextTick(producer.iterator);
-        const response = new Array(selectedChanIds.length);
-        response[chanData.chanNum] = {
+        const response: Array<Pick<typeof chanData, "done" | "value">> =
+          new Array(selectedChanIds.length);
+
+        response[chanData.chanIndex] = {
           value: chanData.value,
           done: chanData.done,
         };
@@ -310,11 +346,11 @@ function scheduler<Data>({
           if (dataConsumers[selectedChanIds[i]]) {
             _addConsumer({
               dataConsumers,
+              chanId: selectedChanIds[i],
               consumer: {
-                chanId: selectedChanIds[i],
                 iterator,
                 type: requestType,
-                payload,
+                payload: { selectedChanIds },
               },
             });
           }
@@ -335,11 +371,12 @@ function scheduler<Data>({
       const consumer = dataConsumers[chanId].pop();
 
       if (consumer) {
+        // if so, then push to the first consumer, not all
         nextTick(iterator);
         const message = _createConsumerMessage(
           consumer,
           { value: msg, done: false },
-          { chanId }
+          chanId
         );
         nextTick(message[0], message[1]);
       } else {
@@ -359,6 +396,7 @@ function scheduler<Data>({
 export function go<Data>(generator: () => GoGenerator<Data>) {
   const iterator = checkGenerator(generator);
   iterator.__goId = uuid();
+
   // so `go` kicks off the scheduler
   scheduler({
     state,
@@ -405,7 +443,7 @@ export function newChannel<Data>() {
           // pass a dummyIterator. We don't care about any errors that
           // may happen down the road, nor do we need any messages
           // from the scheduler
-          iterator: dummyIterator(),
+          iterator: dummyIterator() as GoGenerator<any>,
           yieldRequest: channel.put(msg),
         },
         stopScheduler: false,
@@ -433,14 +471,13 @@ export function close<Data>(channel: Channel<Data>) {
   let consumer = consumers.pop();
 
   while (consumer) {
-    const { iterator, type, payload } = consumer;
-    const request = { chanId, type, payload };
+    const { iterator, ...yieldRequest } = consumer;
 
     scheduler({
       state,
       generator: {
         iterator,
-        yieldRequest: request,
+        yieldRequest,
       },
     });
 
@@ -509,7 +546,7 @@ export function select<Data1, Data2, Data3, Data4, Data5>(
 /**
  * Allows you to yield for the values of the selected channels.
  */
-export function select(...channels: Channel<any>[]): Selection {
+export function select(...channels: Channel<any>[]): ChannelSelectRequest {
   return {
     type: "select",
     payload: { selectedChanIds: channels.map((x) => x._id) || [] },
