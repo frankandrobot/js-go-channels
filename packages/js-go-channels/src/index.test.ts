@@ -504,49 +504,58 @@ describe("select", () => {
   });
 });
 
-// range
-// ===========================
+describe("range", () => {
+  test("range works", async () => {
+    expect.assertions(2);
+    const c1 = newChannel();
+    let i = 0;
 
-test("range works", function (t) {
-  t.plan(2);
-  const c1 = newChannel();
-  let i = 0;
-  go(function* () {
-    yield c1.put("hello");
-  });
-  range(c1).forEach((value) => {
-    if (i === 0) {
-      t.equal(value, "hello");
-    } else if (i === 1) {
-      t.equal(value, "goodbye");
-    } else {
-      t.equal(1, 2, "should not be here");
-    }
-    i++;
-  });
-  go(function* () {
-    yield c1.put("goodbye");
-    close(c1);
-  });
-});
+    go(function* () {
+      yield c1.put("hello");
+    });
 
-test("range unsubscribe works", function (t) {
-  t.plan(1);
-  const c1 = newChannel();
-  let i = 0;
-  go(function* () {
-    yield c1.put("hello");
-  });
-  range(c1).forEach((value) => {
-    if (i === 0) {
-      t.equal(value, "hello");
+    range(c1).forEach((value) => {
+      if (i === 0) {
+        expect(value).toEqual("hello");
+      } else if (i === 1) {
+        expect(value).toEqual("goodbye");
+      } else {
+        throw new Error("should not be here");
+      }
       i++;
-      return false;
-    }
-    t.equal(1, 2, "should not be here");
+    });
+
+    go(function* () {
+      yield c1.put("goodbye");
+      close(c1);
+    });
+
+    await tick();
   });
-  go(function* () {
-    yield c1.put("goodbye");
-    close(c1);
+
+  test("range unsubscribe works", async () => {
+    expect.assertions(1);
+    const c1 = newChannel();
+    let i = 0;
+
+    go(function* () {
+      yield c1.put("hello");
+    });
+
+    range(c1).forEach((value) => {
+      if (i === 0) {
+        expect(value).toEqual("hello");
+        i++;
+        return false;
+      }
+      throw new Error("should not be here");
+    });
+
+    go(function* () {
+      yield c1.put("goodbye");
+      close(c1);
+    });
+
+    await tick();
   });
 });
