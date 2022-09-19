@@ -408,7 +408,7 @@ export function go<Data>(generator: () => GoGenerator<Data>) {
   });
 }
 
-export function newChannel<Data>() {
+export function newChannel<Data = string>() {
   const { channels, dataProducers, dataConsumers } = state;
   const chanId = uuid();
   channels[chanId] = true;

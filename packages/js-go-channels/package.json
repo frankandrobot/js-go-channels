@@ -7,8 +7,7 @@
   "main": "dist/legacy/index.js",
   "module": "src/index.js",
   "scripts": {
-    "test": "tape -r ./babeltest.config 'tests/**/*.js' | tap-notify | tap-diff",
-    "test:simple": "tape -r ./babeltest.config -r babel-polyfill 'tests/**/*.js'",
+    "test": "vitest",
     "clean": "rimraf dist && mkdirp dist/legacy && mkdirp dist/legacy-umd",
     "build:legacy": "BABEL_ENV=legacy babel src --source-maps --no-comments --out-dir dist/legacy/",
     "build:legacy-umd": "rollup --config",
@@ -21,6 +20,7 @@
   "author": "U Avalos <me@frankandrobot.com>",
   "license": "Apache-2.0",
   "devDependencies": {
+    "acorn-jsx": "5.3.2",
     "babel-cli": "^6.26.0",
     "babel-core": "6.26.3",
     "babel-eslint": "10.1.0",
@@ -36,11 +36,8 @@
     "rollup-plugin-commonjs": "10.1.0",
     "rollup-plugin-node-resolve": "5.2.0",
     "rollup-plugin-sourcemaps": "0.6.3",
-    "tap-diff": "^0.1.1",
-    "tap-notify": "^1.0.0",
-    "tape": "5.6.0",
-    "timed-tape": "^0.1.1",
-    "typescript": "4.8.2"
+    "typescript": "4.8.2",
+    "vitest": "0.23.4"
   },
   "dependencies": {
     "babel-runtime": "^6.26.0"

@@ -39,5 +39,9 @@
     "glob-parent": "5.1.2",
     "ajv": "6.12.3",
     "node-notifier": "8.0.1"
+  },
+  "volta": {
+    "node": "18.9.0",
+    "yarn": "1.19.0"
   }
 }
