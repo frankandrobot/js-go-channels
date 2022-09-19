@@ -264,19 +264,13 @@ test("closing twice throws an error", async () => {
   let err: Error | undefined;
 
   go(function* () {
-    yield close(chan, 1);
-    try {
-      yield close(chan, 2);
-    } catch (e) {
-      err = e as Error;
-    } finally {
-      expect(err).toBeDefined();
-      // TODO
-      // expect(err?.message).toMatch(/Channel is already closed/i);
-    }
+    yield close(chan);
+    yield close(chan);
   });
 
   await tick();
+
+  expect(err?.message).toMatch(/Channel is already closed/i);
 });
 
 test("putting on a closed channel throws an error", async () => {
@@ -385,107 +379,128 @@ test("closing a pending select works", async () => {
 // misc
 // ====================================
 
-test("go with timeout", function (t) {
-  t.plan(1);
-  const c1 = newChannel();
-  go(function* () {
-    setTimeout(() => c1.asyncPut("one"), 100);
-  });
-  go(function* () {
-    const { value: msg } = yield c1.take();
-    t.equal(msg, "one");
+describe("misc", () => {
+  test("go with timeout", async () => {
+    expect.assertions(1);
+    const c1 = newChannel();
+
+    go(function* () {
+      setTimeout(() => c1.asyncPut("one"), 100);
+    });
+
+    go(function* () {
+      const { value: msg } = yield c1.take();
+      expect(msg).toEqual("one");
+    });
+
+    // TODO remove timeout
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await tick();
   });
 });
 
-// select
-// ============================
+describe("select", () => {
+  test("select", async () => {
+    expect.assertions(2);
+    const c1 = newChannel();
+    const c2 = newChannel();
 
-test("select", function (t) {
-  t.plan(2);
-  const c1 = newChannel();
-  const c2 = newChannel();
-  go(function* () {
-    yield c1.put("one");
-    yield c2.put("two");
-  });
-  go(function* () {
-    for (let i = 1; i <= 2; i++) {
-      const [val1, val2] = yield select(c1, c2);
-      if (typeof val1 !== "undefined") {
-        t.deepEqual(val1, { value: "one", done: false });
-      } else if (typeof val2 !== "undefined") {
-        t.deepEqual(val2, { value: "two", done: false });
-      }
-    }
-  });
-});
+    go(function* () {
+      yield c1.put("one");
+      yield c2.put("two");
+    });
 
-test("select roundrobin", function (t) {
-  t.plan(2);
-  const c1 = newChannel();
-  const c2 = newChannel();
-  go(function* () {
-    yield c1.put("one");
-  });
-  go(function* () {
-    yield c2.put("two");
-  });
-  go(function* () {
-    for (let i = 1; i <= 2; i++) {
-      const [val1, val2] = yield select(c1, c2);
-      if (typeof val1 !== "undefined") {
-        t.deepEqual(val1, { value: "one", done: false });
-      } else if (typeof val2 !== "undefined") {
-        t.deepEqual(val2, { value: "two", done: false });
+    go(function* () {
+      for (let i = 1; i <= 2; i++) {
+        const [val1, val2] = yield select(c1, c2);
+        if (typeof val1 !== "undefined") {
+          expect(val1).toEqual({ value: "one", done: false });
+        } else if (typeof val2 !== "undefined") {
+          expect(val2).toEqual({ value: "two", done: false });
+        }
       }
-    }
-  });
-});
+    });
 
-test("select roundrobins with closed channels", function (t) {
-  t.plan(2);
-  const c1 = newChannel();
-  const c2 = newChannel();
-  close(c1);
-  close(c2);
-  go(function* () {
-    for (let i = 1; i <= 2; i++) {
-      const [val1, val2] = yield select(c1, c2);
-      if (typeof val1 !== "undefined") {
-        t.deepEqual(val1, { value: undefined, done: true });
-      } else if (typeof val2 !== "undefined") {
-        t.deepEqual(val2, { value: undefined, done: true });
-      }
-    }
+    await tick();
   });
-});
 
-test("selecting the same channels works across goroutines", function (t) {
-  t.plan(4);
-  const c1 = newChannel();
-  const c2 = newChannel();
-  close(c1);
-  close(c2);
-  go(function* () {
-    yield c1.take();
-    yield c2.take();
-    // wait for the close to happen
-    const [val1, val2] = yield select(c1, c2);
-    t.notEqual(typeof val1, "undefined");
-    t.deepEqual(val1, { value: undefined, done: true });
-  });
-  go(function* () {
-    yield c1.take();
-    yield c2.take();
-    // wait for the close to happen
-    for (let i = 1; i <= 2; i++) {
-      const [val1, val2] = yield select(c1, c2);
-      if (i === 1) {
-        t.deepEqual(val1, { value: undefined, done: true });
-      } else if (i === 2) {
-        t.deepEqual(val2, { value: undefined, done: true });
+  test("select round robin", async () => {
+    expect.assertions(2);
+    const c1 = newChannel();
+    const c2 = newChannel();
+
+    go(function* () {
+      yield c1.put("one");
+    });
+    go(function* () {
+      yield c2.put("two");
+    });
+
+    go(function* () {
+      for (let i = 1; i <= 2; i++) {
+        const [val1, val2] = yield select(c1, c2);
+        if (typeof val1 !== "undefined") {
+          expect(val1).toEqual({ value: "one", done: false });
+        } else if (typeof val2 !== "undefined") {
+          expect(val2).toEqual({ value: "two", done: false });
+        }
       }
-    }
+    });
+
+    await tick();
+  });
+
+  test("select roundrobins with closed channels", async () => {
+    expect.assertions(2);
+    const c1 = newChannel();
+    const c2 = newChannel();
+    close(c1);
+    close(c2);
+
+    go(function* () {
+      for (let i = 1; i <= 2; i++) {
+        const [val1, val2] = yield select(c1, c2);
+        if (typeof val1 !== "undefined") {
+          expect(val1).toEqual({ value: undefined, done: true });
+        } else if (typeof val2 !== "undefined") {
+          expect(val2).toEqual({ value: undefined, done: true });
+        }
+      }
+    });
+
+    await tick();
+  });
+
+  test("selecting the same channels works across go routines", async () => {
+    expect.assertions(3);
+    const c1 = newChannel();
+    const c2 = newChannel();
+    close(c1);
+    close(c2);
+
+    go(function* () {
+      yield c1.take();
+      yield c2.take();
+      // wait for the close to happen
+      const [val1, val2] = yield select(c1, c2);
+      expect(val1).toEqual({ value: undefined, done: true });
+    });
+
+    go(function* () {
+      yield c1.take();
+      yield c2.take();
+      // wait for the close to happen
+      for (let i = 1; i <= 2; i++) {
+        const [val1, val2] = yield select(c1, c2);
+        if (i === 1) {
+          expect(val1).toEqual({ value: undefined, done: true });
+        } else if (i === 2) {
+          expect(val2).toEqual({ value: undefined, done: true });
+        }
+      }
+    });
+
+    await tick();
   });
 });
 

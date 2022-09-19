@@ -57,7 +57,7 @@ interface Channel<Data> {
 type GoNextGenerator<Data> = IteratorResult<Data, Data>;
 
 type GoGenerator<Data> = Generator<
-  ChannelYieldRequest<Data>, // yield result
+  ChannelYieldRequest<Data> | void, // yield result
   void, // return type
   any // TODO next arguments
 > & { __goId?: string };
@@ -165,7 +165,7 @@ function _addConsumer<Data>({
   chanId: string;
   consumer: Consumer<Data>;
 }) {
-  dataConsumers[chanId].add({
+  dataConsumers[chanId]?.add({
     chanId,
     iterator,
     type,
@@ -250,7 +250,7 @@ function scheduler<Data>({
       }
 
       // do we have any sleeping data producers?
-      const producer = dataProducers[chanId].pop();
+      const producer = dataProducers[chanId]?.pop();
 
       if (producer) {
         const {
@@ -299,7 +299,7 @@ function scheduler<Data>({
       // out-of-bounds exception
       const unboundedLastSelected =
         typeof lastSelected[lastSelectedId] !== "undefined"
-          ? lastSelected[lastSelectedId]
+          ? lastSelected[lastSelectedId] ?? -1
           : -1;
 
       const last = (unboundedLastSelected + 1) % selectedChanIds.length;
@@ -307,7 +307,7 @@ function scheduler<Data>({
 
       // do we have any sleeping producers? but start from the last selected
       for (let i = last; i < selectedChanIds.length; i++) {
-        const _chanId = selectedChanIds[i];
+        const _chanId = selectedChanIds[i]!;
 
         if (!channels[_chanId]) {
           // if channel was closed then send undefined
@@ -315,7 +315,7 @@ function scheduler<Data>({
           break;
         }
 
-        producer = dataProducers[_chanId].pop();
+        producer = dataProducers[_chanId]?.pop();
 
         if (producer) {
           const {
@@ -342,11 +342,11 @@ function scheduler<Data>({
       } else {
         // There were no sleeping producers, so add ourselves to the
         // waiting list of all the non-closed producers.
-        for (let i = 0; i < selectedChanIds.length; i++) {
-          if (dataConsumers[selectedChanIds[i]]) {
+        for (const selectedChanId of selectedChanIds) {
+          if (dataConsumers[selectedChanId]) {
             _addConsumer({
               dataConsumers,
-              chanId: selectedChanIds[i],
+              chanId: selectedChanId,
               consumer: {
                 iterator,
                 type: requestType,
@@ -368,7 +368,7 @@ function scheduler<Data>({
 
       const { msg } = payload;
       // do we have any takers?
-      const consumer = dataConsumers[chanId].pop();
+      const consumer = dataConsumers[chanId]?.pop();
 
       if (consumer) {
         // if so, then push to the first consumer, not all
@@ -381,7 +381,7 @@ function scheduler<Data>({
         nextTick(message[0], message[1]);
       } else {
         // let's wait for a data consumer
-        dataProducers[chanId].add({
+        dataProducers[chanId]?.add({
           chanId,
           iterator,
           payload,
@@ -389,6 +389,10 @@ function scheduler<Data>({
         });
       }
       return;
+    }
+
+    default: {
+      return nextTick(iterator);
     }
   }
 }
@@ -461,14 +465,16 @@ export function close<Data>(channel: Channel<Data>) {
   const { channels, dataProducers, dataConsumers } = state;
   const chanId = channel._id;
 
+  console.log(channels[chanId]);
+
   if (!channels[chanId]) new Error("Channel is already closed");
 
   // turn off channel
   delete channels[chanId];
 
   // awaken any pending consumers, now that the channel is closed
-  const consumers = dataConsumers[chanId] as LinkedListBuffer<Consumer<Data>>;
-  let consumer = consumers.pop();
+  const consumers = dataConsumers[chanId];
+  let consumer = consumers?.pop();
 
   while (consumer) {
     const { iterator, ...yieldRequest } = consumer;
@@ -481,14 +487,14 @@ export function close<Data>(channel: Channel<Data>) {
       },
     });
 
-    consumer = consumers.pop();
+    consumer = consumers?.pop();
   }
 
   delete dataConsumers[chanId];
 
   // hope we don't have pending producers
   const producers = dataProducers[chanId];
-  let producer = producers.pop();
+  let producer = producers?.pop();
 
   while (producer) {
     const { iterator } = producer;
@@ -504,7 +510,7 @@ export function close<Data>(channel: Channel<Data>) {
       stopScheduler,
     });
 
-    producer = producers.pop();
+    producer = producers?.pop();
   }
 
   delete dataProducers[chanId];
@@ -594,40 +600,3 @@ export function range<Data>(channel: Channel<Data>) {
 }
 
 export { LinkedListBuffer, checkGenerator };
-
-const ch = newChannel<number>();
-
-go(function* () {
-  yield ch.put(0);
-  // recall we have to use asyncPut inside of a callback
-  setTimeout(() => ch.asyncPut(1), 1000);
-});
-
-const foo = function* () {
-  yield ch.put(0);
-  // recall we have to use asyncPut inside of a callback
-  setTimeout(() => ch.asyncPut(1), 1000);
-};
-
-range(ch).forEach((x) => {
-  console.log(x);
-});
-
-const ch2 = newChannel<string>();
-
-go(function* () {
-  yield ch2.put("hello");
-  close(ch2);
-  // this will throw an error because you can't put on a closed
-  // channel
-  yield ch2.put("world");
-});
-
-go(function* () {
-  const msg1 = yield ch.take();
-  console.log(msg1); // {value: hello, done: false}
-  const msg2 = yield ch.take();
-  console.log(msg2); // {value: undefined, done: true}
-  const msg3 = yield ch.take();
-  console.log(msg3); // {value: undefined, done: true}
-});
