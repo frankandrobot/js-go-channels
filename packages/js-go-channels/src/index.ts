@@ -132,11 +132,7 @@ const state = initialStateFn();
 const putCloseError = new Error("Cannot put on a closed channel");
 const closeError = new Error("Channel already closed");
 
-const dummyIterator = (): GoIterator<undefined> => ({
-  next: () => ({ value: undefined, done: true }),
-  throw: () => ({ value: undefined, done: true }),
-  return: () => ({ value: undefined, done: true }),
-});
+const dummyIterator = function* () {};
 
 /**
  * Does what it says. Need to take into account the case when the
@@ -414,6 +410,7 @@ function scheduler<Data>({
         return;
       }
       return nextTick(iterator);
+
     default: {
       const x: never = requestType;
     }
