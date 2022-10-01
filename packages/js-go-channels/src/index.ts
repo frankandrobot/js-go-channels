@@ -36,10 +36,17 @@ interface ChannelSelectRequest {
   };
 }
 
+interface ChannelCloseRequest {
+  chanId: string;
+  type: "close";
+  payload: undefined;
+}
+
 type ChannelYieldRequest<Data> =
   | ChannelTakeRequest
   | ChannelPutRequest<Data>
-  | ChannelSelectRequest;
+  | ChannelSelectRequest
+  | ChannelCloseRequest;
 
 interface Channel<Data> {
   readonly _id: string;
@@ -110,6 +117,8 @@ interface State {
   rangeRequests?: [];
 }
 
+const tag = "[js-go-channels]";
+
 export const initialStateFn = (): State => ({
   channels: {},
   dataProducers: {},
@@ -121,6 +130,7 @@ export const initialStateFn = (): State => ({
 const state = initialStateFn();
 
 const putCloseError = new Error("Cannot put on a closed channel");
+const closeError = new Error("Channel already closed");
 
 const dummyIterator = (): GoIterator<undefined> => ({
   next: () => ({ value: undefined, done: true }),
@@ -196,6 +206,11 @@ function scheduler<Data>({
     const { value: yieldRequest, done: stopScheduler } =
       iterator.next(iteratorMessage);
 
+    console.debug(tag, `go: ${iterator.__goId}`, "message received", {
+      yieldRequest,
+      stopScheduler,
+    });
+
     setTimeout(
       () =>
         scheduler({
@@ -231,10 +246,12 @@ function scheduler<Data>({
 
   // if no yield request, then at start of generator, so get one
   if (!yieldRequest && !stopScheduler) {
+    console.debug(tag, `go: ${iterator.__goId}`, "asking for first message");
     return nextTick(iterator);
   }
   // if this generator is done, then goodbye
   if (stopScheduler || !yieldRequest) {
+    console.debug(tag, `go: ${iterator.__goId}`, "stopping scheduler");
     return;
   }
 
@@ -391,8 +408,14 @@ function scheduler<Data>({
       return;
     }
 
-    default: {
+    case "close":
+      if (!channels[chanId]) {
+        nextTickThrow(iterator, closeError);
+        return;
+      }
       return nextTick(iterator);
+    default: {
+      const x: never = requestType;
     }
   }
 }
@@ -461,13 +484,18 @@ export function newChannel<Data = string>() {
 /**
  * Kill the channel
  */
-export function close<Data>(channel: Channel<Data>) {
+export function close<Data>(
+  channel: Channel<Data>
+): ChannelCloseRequest | void {
   const { channels, dataProducers, dataConsumers } = state;
   const chanId = channel._id;
 
-  console.log(channels[chanId]);
+  console.debug(tag, `channel: ${chanId}`, "closing");
 
-  if (!channels[chanId]) new Error("Channel is already closed");
+  if (!channels[chanId]) {
+    console.debug(tag, `channel: ${chanId}`, "aborting close");
+    throw closeError;
+  }
 
   // turn off channel
   delete channels[chanId];
@@ -515,7 +543,11 @@ export function close<Data>(channel: Channel<Data>) {
 
   delete dataProducers[chanId];
 
-  return;
+  return {
+    chanId,
+    type: "close",
+    payload: undefined,
+  };
 }
 
 interface Selection {

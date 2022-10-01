@@ -22,6 +22,10 @@ const tick = async (timeoutCounts = 5) => {
   }
 };
 
+beforeAll(() => {
+  // console.debug = vitest.fn();
+});
+
 test("go needs a generator", () => {
   // @ts-ignore
   expect(() => go("25")).toThrowError(/Need a generator/i);
@@ -239,14 +243,14 @@ test("close should work with repl example", async () => {
   await tick();
 });
 
-test("pending consumers throw error on close", async () => {
+test("pending producers throw error on close", async () => {
   expect.assertions(1);
   const ch = newChannel();
   let err: Error | undefined;
 
   go(function* () {
     try {
-      yield ch.put("hi ho");
+      yield ch.put("it's pending until someone takes");
     } catch (e) {
       err = e as Error;
     }
@@ -264,13 +268,17 @@ test("closing twice throws an error", async () => {
   let err: Error | undefined;
 
   go(function* () {
-    yield close(chan);
-    yield close(chan);
+    try {
+      yield close(chan);
+      yield close(chan);
+    } catch (e) {
+      err = e as Error;
+    } finally {
+      expect(err?.message).toMatch(/channel already closed/i);
+    }
   });
 
   await tick();
-
-  expect(err?.message).toMatch(/Channel is already closed/i);
 });
 
 test("putting on a closed channel throws an error", async () => {
